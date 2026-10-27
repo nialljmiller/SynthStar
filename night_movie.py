@@ -11,7 +11,8 @@ The night, step by step (main):
   3. constant stars: the MESA SED matched to each star's Gaia BP-RP, scaled to its G -> electrons/s per band (ArgusSim)
   4. followed stars: their SED at every exposure (pulsation / orbit phase, or time since t0), through the observation's
      dust -> electrons/s
-  5. conditions per exposure (ArgusSim): seeing (seasonal median x airmass^0.6), Zemax PSF with that seeing, sky
+  5. conditions per exposure (ArgusSim): seeing (seasonal median x airmass^0.6), ArgusSim's PSF with that seeing
+     ([argussim.telescope] psf_model: the Zemax PSF, or the Gaussian spot with no Zemax file read), sky
   6. the difference-image reference: the median of the best-seeing exposures
   7. every exposure: PSFs + sky -> Poisson, full well, read noise -> hdps source detector, matched to the simulated
      stars, per-exposure zero point (mesa_argus.pipeline)
@@ -42,11 +43,14 @@ import matplotlib.text as mtext  # noqa: E402
 from matplotlib.animation import FFMpegWriter  # noqa: E402
 from matplotlib.backends.backend_agg import FigureCanvasAgg  # noqa: E402
 from matplotlib.colors import AsinhNorm  # noqa: E402
+from matplotlib.collections import LineCollection  # noqa: E402
 from matplotlib.patches import Circle, Rectangle  # noqa: E402
+from matplotlib.path import Path as MPath  # noqa: E402
 import numpy as np  # noqa: E402
 from scipy import sparse  # noqa: E402
 
-from argus_sim import ABPhot, SpectralSky, SystemThroughput, ZemaxPSF  # noqa: E402
+# (ZemaxPSF is imported only where psf_model is "zemax" (Scene): the public argus_sim has none)
+from argus_sim import ABPhot, SpectralSky, SystemThroughput  # noqa: E402
 from argus_sim import c as ARGUS_CONFIG  # noqa: E402
 from argus_sim import skymap_shim as sh  # noqa: E402
 from argus_sim.observatory import Observatory, seasonal_seeing_params, seeing_at_airmass  # noqa: E402
@@ -460,7 +464,27 @@ class Scene:
         step = self.plate / self.native_plate  # tile pixel i is at native_centre + (i + 0.5 - centre) * step
         self._resample_args = (self.n, self.native_n, self.native_centre + (0.5 - self.centre) * step, step)
         self._resample = None
-        psf_model = ZemaxPSF.from_config(cfg)
+        if cfg.telescope.psf_model == "gaussian":  # ArgusSim's GaussianPSF: no Zemax file read, no ZemaxPSF import
+            from mesa_argus import sensor
+
+            gaussian, made = sensor.gaussian_psf(cfg), {}
+
+            def psf_at(seeing, band, angle, iy, ix):
+                """The Gaussian's centre moved by -phase, as ZemaxPSF's pixel_phase moves the light (the stamp's centroid
+                moves by -phase, below); the same in both bands and at every field angle, so made once per seeing."""
+                key = (float(seeing), iy, ix)
+                if key not in made:
+                    made[key] = sensor.gaussian_stamp(gaussian, seeing, -iy / PSF_PHASES, -ix / PSF_PHASES)
+                return made[key].copy()
+        else:
+            from argus_sim import ZemaxPSF
+
+            psf_model = ZemaxPSF.from_config(cfg)
+
+            def psf_at(seeing, band, angle, iy, ix):
+                p, _ = psf_model.with_seeing(seeing=seeing, band=band, field_angle_deg=angle,
+                                             pixel_phase=(iy / PSF_PHASES, ix / PSF_PHASES))
+                return p
         self.seeings = list(seeings)
         self.field_angles = list(field_angles) if field_angles is not None else [args.field_angle] * len(self.seeings)
         self.lookup = {}  # (band, PSF set index, y phase, x phase) -> unit-flux PSF stamp
@@ -468,8 +492,7 @@ class Scene:
             for name, band in BANDS.items():
                 for iy in range(PSF_PHASES):
                     for ix in range(PSF_PHASES):
-                        p, _ = psf_model.with_seeing(seeing=seeing, band=band, field_angle_deg=angle,
-                                                     pixel_phase=(iy / PSF_PHASES, ix / PSF_PHASES))
+                        p = psf_at(seeing, band, angle, iy, ix)
                         p = np.maximum(p, 0.0)
                         self.lookup[name, si, iy, ix] = p / p.sum()
         p0 = self.lookup["rho", 0, 0, 0]
@@ -554,13 +577,14 @@ class Scene:
 
 
 # ---------------------------------------------------------------- the steps of main
-def constant_star_rates(stars, pulsators, ab):
+def constant_star_rates(stars, pulsators, ab, workers=1):
     """Every star as a constant. Its Gaia G and BP-RP were measured through the dust in front of it (column ebv_own):
     that dust is taken out (mesa_argus.dust.deredden: the MESA template whose reddened colour is the measured one, and
     the dust-free G), and the dust where it is observed (column ebv) put back into the template's SED (CCM89). At its
     real position the two are the same, and the star is as Gaia measured it; scattered (a synthetic field), its G and
     BP-RP become those seen through the new sightline. Returns electrons/s on AIRMASS_GRID and above-atmosphere
-    magnitudes, per band; the templates; each star's colour as measured (filled where Gaia has none)."""
+    magnitudes, per band; the templates; each star's colour as measured (filled where Gaia has none). workers: the
+    templates' photometry in that many forked processes ([stars] photometry_workers)."""
     templates = Templates()
     G = column(stars, "Gmag")
     colour = column(stars, "BP-RP")
@@ -602,21 +626,32 @@ def constant_star_rates(stars, pulsators, ab):
     print(f"dust: E(B-V) {np.min(ebv):.3f}-{np.max(ebv):.3f} where observed (median {np.median(ebv):.3f}); "
           f"{int(moved.sum())} stars seen through other dust than Gaia saw them through", flush=True)
 
-    print("ArgusSim photometry of every star …", flush=True)
+    print(f"ArgusSim photometry of every star ({workers} process{'es' if workers > 1 else ''}) …", flush=True)
     rate = {b: np.zeros((len(stars), len(AIRMASS_GRID))) for b in BANDS}
     mag = {b: np.zeros(len(stars)) for b in BANDS}
     template = np.array([templates.index(c) for c in intrinsic])
     scale = 10 ** (-0.4 * (G0 - templates.g[template]))
     step = 0.05  # ArgusSim once per template at E(B-V) on this grid, linear in between (in magnitudes)
+    grid = {}
     for t in np.unique(template):
+        e = ebv[template == t]
+        grid[t] = np.arange(np.floor(e.min() / step), np.ceil(e.max() / step) + 0.5) * step  # covers every star's E(B-V)
+    global _PHOTOMETRY
+    _PHOTOMETRY = (templates, ab, grid)
+    if workers > 1:  # forked: the workers share the templates and ArgusSim's throughputs with this process
+        import multiprocessing
+        from concurrent.futures import ProcessPoolExecutor
+
+        with ProcessPoolExecutor(workers, mp_context=multiprocessing.get_context("fork")) as pool:
+            light = dict(zip(grid, pool.map(template_photometry, grid, chunksize=4)))
+    else:
+        light = {t: template_photometry(t) for t in grid}
+    _PHOTOMETRY = None
+    for t, nodes in grid.items():
         these = template == t
         e = ebv[these]
-        nodes = np.arange(np.floor(e.min() / step), np.ceil(e.max() / step) + 0.5) * step  # covers every star's E(B-V)
-        for b, band in BANDS.items():
-            node_mag = np.array([float(ab.mag_from_sed(band, templates.wave, dust.redden(templates.wave.value, templates.flux[t], x) * FLAM))
-                                 for x in nodes])
-            node_rate = np.array([[ab.electrons_from_sed(band, templates.wave, dust.redden(templates.wave.value, templates.flux[t], x) * FLAM,
-                                                         airmass=a).value for a in AIRMASS_GRID] for x in nodes])
+        for b in BANDS:
+            node_mag, node_rate = light[t][b]
             if len(nodes) == 1:
                 rate[b][these] = np.outer(scale[these], node_rate[0])
                 mag[b][these] = node_mag[0] - 2.5 * np.log10(scale[these])
@@ -625,6 +660,20 @@ def constant_star_rates(stars, pulsators, ab):
             rate[b][these] = scale[these, None] * np.exp(log_rate)
             mag[b][these] = np.interp(e, nodes, node_mag) - 2.5 * np.log10(scale[these])
     return rate, mag, templates, colour
+
+
+_PHOTOMETRY = None  # (templates, ab, E(B-V) nodes per template) while constant_star_rates runs
+
+
+def template_photometry(t):
+    """Template t through ArgusSim at each of its E(B-V) nodes: per band, the magnitude above the atmosphere and the
+    electrons/s on AIRMASS_GRID. Each node's reddened SED is made once, for both bands and every airmass."""
+    templates, ab, grid = _PHOTOMETRY
+    seds = [dust.redden(templates.wave.value, templates.flux[t], x) * FLAM for x in grid[t]]
+    return {b: (np.array([float(ab.mag_from_sed(band, templates.wave, f)) for f in seds]),
+                np.array([[ab.electrons_from_sed(band, templates.wave, f, airmass=a).value for a in AIRMASS_GRID]
+                          for f in seds]))
+            for b, band in BANDS.items()}
 
 
 def followed_star_light(k, v, args, ab, bjd, airmass, model_file, model_ebv, model_distance):
@@ -785,9 +834,10 @@ def raw_frame_path(folder, row, args):
     return folder / f"{camera.camera_id(int(row['tel_id']))}_{start.datetime:%Y%m%d_%H%M%S}.fits", start, end
 
 
-def write_raw_frame(folder, image, win, row, args):
+def write_raw_frame(folder, image, win, row, args, cards=None):
     """The exposure as a raw camera frame (mesa_argus.camera): <folder>/<CAMID>_<UTC start>.fits. The header's
-    pointing is the readout window's centre (the camera's pointing over what it reads out)."""
+    pointing is the readout window's centre (the camera's pointing over what it reads out); cards: more header cards
+    (the simulation's calibration, mesa_argus.true_calibration)."""
     from argus_sim.coverage_exact import Layout
 
     from mesa_argus import camera, sensor
@@ -799,7 +849,7 @@ def write_raw_frame(folder, image, win, row, args):
     camera.write_raw(path, image, dict(utc_start=start.isot, utc_end=end.isot, exptime=args.exptime,
                                        ratchet=f"{start.datetime:%Y%m%d}_{int(row['ratchet'])}", tel_id=int(row["tel_id"]),
                                        target_ra=float(ra), target_dec=float(dec), band=row["band"], x_origin=win[0],
-                                       y_origin=win[1]))
+                                       y_origin=win[1], cards=cards or {}))
     return path
 
 
@@ -843,6 +893,15 @@ def measure_frame(work, stem, band, obs, star_x, star_y, expected_flux):
     return catalogue, zp, star_of, wcs
 
 
+def block_cut():
+    """The block cut-out's slice of hdps's tile grid, and (cx, cy, x0, y0): the block centre and the cut's corner in
+    tile pixels (block_cutouts, ReferenceMask)."""
+    cx, cy = (BLOCK[0] + 0.5) * MINIPIX_PX - 0.5, (BLOCK[1] + 0.5) * MINIPIX_PX - 0.5  # hdps tile grid
+    h = int(np.ceil((HALF + 2) / SKY_PX)) + 1
+    x0, y0 = int(round(cx)) - h, int(round(cy)) - h
+    return (slice(max(y0, 0), y0 + 2 * h + 1), slice(max(x0, 0), x0 + 2 * h + 1)), (cx, cy, x0, y0)
+
+
 def block_cutouts(work, stem):
     """hdps's tile holding the block (TileImageOutputTask's science_tile and difference_tile), cut around it:
     (science before subtraction, difference, extent in arcsec from the block centre), or None when hdps made no
@@ -854,14 +913,269 @@ def block_cutouts(work, stem):
     if not (sci_path.exists() and diff_path.exists()):
         return None
     sci, diff = fits.getdata(sci_path, "SCI"), fits.getdata(diff_path, "DIFF")
-    cx, cy = (BLOCK[0] + 0.5) * MINIPIX_PX - 0.5, (BLOCK[1] + 0.5) * MINIPIX_PX - 0.5  # hdps tile grid
-    h = int(np.ceil((HALF + 2) / SKY_PX)) + 1
-    x0, y0 = int(round(cx)) - h, int(round(cy)) - h
-    cut = (slice(max(y0, 0), y0 + 2 * h + 1), slice(max(x0, 0), x0 + 2 * h + 1))
+    cut, (cx, cy, x0, y0) = block_cut()
     sci_cut, diff_cut = np.asarray(sci)[cut].astype(np.float32), np.asarray(diff)[cut].astype(np.float32)
     extent = ((max(x0, 0) - 0.5 - cx) * SKY_PX, (max(x0, 0) + sci_cut.shape[1] - 0.5 - cx) * SKY_PX,
               (max(y0, 0) - 0.5 - cy) * SKY_PX, (max(y0, 0) + sci_cut.shape[0] - 0.5 - cy) * SKY_PX)
     return dict(science=sci_cut, difference=diff_cut, extent=extent)
+
+
+def window_footprint(win, row, layout, n=4):
+    """A readout window's outline on the sky: (m, 2) arcsec from the block centre (block_offsets), n points along each
+    side of its outer pixel edges, closed, as ArgusSim's geometry places them (mesa_argus.sensor.sky_at)."""
+    from mesa_argus import sensor
+
+    x0, y0, w, h = float(win[0]) - 0.5, float(win[1]) - 0.5, float(win[2]), float(win[3])  # (pixel centres at integers)
+    t = np.arange(n) / n
+    x = np.r_[x0 + t * w, np.full(n, x0 + w), x0 + w - t * w, np.full(n, x0), x0]
+    y = np.r_[np.full(n, y0), y0 + t * h, np.full(n, y0 + h), y0 + h - t * h, y0]
+    ra, dec = sensor.sky_at(x, y, row["time"], row["theta_deg"], int(row["ota"]), layout)
+    return np.c_[block_offsets(np.asarray(ra), np.asarray(dec))].astype(np.float32)
+
+
+class WindowMosaic:
+    """The field movie's whole-window images: hdps's tile images (TileImageOutputTask's science_tile and
+    difference_tile, every tile the readout window touches) on one display grid, and hdps's minipix grid to draw over
+    them.
+
+    The panels' view is a square about the union of the frames' readout windows (footprints: window_footprint), or
+    with zoom > 1 its central 1/zoom about the block. The display grid is the main tile's (TILE's) pixel grid, north
+    up, in blocks of `bin` x `bin` tile pixels (a power of two, so up to 32 the main tile's minipix edges are
+    display-pixel edges), over the frames' windows inside the view, `bin` the smallest that brings it to at most
+    target_px across. Each tile pixel goes to the display pixel holding its centre (its tile's
+    WCS -> sky -> the main tile's tangent plane), and only from the tile hdps gives that sky position to: neighbouring
+    tiles overlap by one minipix (28.125"), and each position lies in one tile's minipix (skymap_shim.
+    radec_to_composite_id). A display pixel is the mean of its covered tile pixels (hdps's tiles are 0 where the frame
+    does not reach); blank (nan) where fewer than half of them are covered or hdps wrote no image of the tile."""
+
+    def __init__(self, footprints, target_px, zoom=1.0):
+        points = np.concatenate([f for f in footprints if f is not None])
+        x0, x1 = (points[:, 0].min(), points[:, 0].max())
+        y0, y1 = (points[:, 1].min(), points[:, 1].max())
+        half = 0.51 * max(x1 - x0, y1 - y0) / zoom  # the panels' view: square, about every frame's window, or about
+        cx, cy = (0.5 * (x0 + x1), 0.5 * (y0 + y1)) if zoom == 1 else (0.0, 0.0)  # the block (zoom > 1)
+        self.view = (cx - half, cx + half, cy - half, cy + half)
+        x0, x1, y0, y1 = max(x0, self.view[0]), min(x1, self.view[1]), max(y0, self.view[2]), min(y1, self.view[3])
+        # u, v: the main tile's 0-based pixel + 0.5 (pixel edges at integers, minipix edges at multiples of 32)
+        self.cu, self.cv = (BLOCK[0] + 0.5) * MINIPIX_PX, (BLOCK[1] + 0.5) * MINIPIX_PX  # the block centre
+        u, v = np.array([x0, x1]) / SKY_PX + self.cu, np.array([y0, y1]) / SKY_PX + self.cv
+        span = max(np.ptp(u), np.ptp(v))
+        self.bin = 1
+        while span / self.bin > target_px:
+            self.bin *= 2
+        b = self.bin
+        self.u0, self.v0 = np.floor(u.min() / b) * b, np.floor(v.min() / b) * b
+        self.shape = (int(np.ceil((v.max() - self.v0) / b)), int(np.ceil((u.max() - self.u0) / b)))  # (rows, columns)
+        self.index, self.owned, self.wcs = {}, {}, {}  # per tile: each pixel's display pixel (-1: none); counts; WCS
+        self.ever = np.zeros(self.shape, bool)  # display pixels with an image in any frame
+
+    def extent(self, r0, r1, c0, c1):
+        """Display rows r0:r1, columns c0:c1 in arcsec from the block centre (imshow's extent)."""
+        b = self.bin
+        return ((self.u0 + c0 * b - self.cu) * SKY_PX, (self.u0 + c1 * b - self.cu) * SKY_PX,
+                (self.v0 + r0 * b - self.cv) * SKY_PX, (self.v0 + r1 * b - self.cv) * SKY_PX)
+
+    def tiles(self):
+        """The tiles whose sky the display grid reaches (skymap_shim's tessellation at every display pixel)."""
+        x0, x1, y0, y1 = self.extent(0, self.shape[0], 0, self.shape[1])
+        x, y = np.meshgrid(np.linspace(x0, x1, self.shape[1] + 1), np.linspace(y0, y1, self.shape[0] + 1))
+        return sorted(int(t) for t in np.unique(sh.radec_to_composite_id(*block_radec(x.ravel(), y.ravel()))[0]))
+
+    def pixel_of(self, dx, dy):
+        """Display (row, column) of offsets dx, dy (arcsec; floats: their floors are the pixel)."""
+        return ((np.asarray(dy) / SKY_PX + self.cv - self.v0) / self.bin,
+                (np.asarray(dx) / SKY_PX + self.cu - self.u0) / self.bin)
+
+    def _tile(self, tile, header):
+        """Tile `tile`'s pixels' display pixels (flat; -1 outside the grid or in another tile's sky), made once."""
+        from astropy.wcs import WCS
+
+        if tile not in self.index:
+            w, n, rows = WCS(header), sh.SEGMENT_PIXEL_SIZE, 256
+            index = np.full(n * n, -1, np.int32)
+            for r0 in range(0, n, rows):  # (in strips: 4 M pixels at once would take ~0.5 GB)
+                y, x = np.mgrid[r0:r0 + rows, 0:n]
+                ra, dec = w.all_pix2world(x.ravel(), y.ravel(), 0)
+                mine = sh.radec_to_composite_id(ra, dec)[0] == tile
+                r, c = (np.floor(a).astype(np.int64) for a in self.pixel_of(*block_offsets(ra, dec)))
+                ok = mine & (r >= 0) & (r < self.shape[0]) & (c >= 0) & (c < self.shape[1])
+                index[r0 * n:(r0 + rows) * n] = np.where(ok, r * self.shape[1] + c, -1)
+            self.index[tile], self.wcs[tile] = index, w
+            self.owned[tile] = np.bincount(index[index >= 0], minlength=self.ever.size)
+        return self.index[tile]
+
+    def frame(self, work, stem):
+        """A frame's images from hdps's tile files: dict(science (before subtraction), difference, extent), float32,
+        cut to the display pixels it covers; None when hdps wrote no tile image of the frame."""
+        from astropy.io import fits
+
+        size = self.ever.size
+        owned, covered, science, difference = (np.zeros(size) for _ in range(4))
+        for sci_path in sorted(work.glob(f"epoch_{stem}_tile_*_sci.fits")):
+            diff_path = sci_path.with_name(sci_path.name[:-len("_sci.fits")] + "_diff.fits")
+            if not diff_path.exists():
+                continue
+            tile = int(sci_path.name[:-len("_sci.fits")].rsplit("_", 1)[1])
+            with fits.open(sci_path) as hdul:
+                index = self._tile(tile, hdul["SCI"].header)
+                sci = np.asarray(hdul["SCI"].data, float).ravel()
+            diff = np.asarray(fits.getdata(diff_path, "DIFF"), float).ravel()
+            use = (index >= 0) & (sci != 0) & np.isfinite(sci)
+            k = index[use]
+            owned += self.owned[tile]
+            covered += np.bincount(k, minlength=size)
+            science += np.bincount(k, weights=sci[use], minlength=size)
+            difference += np.bincount(k, weights=diff[use], minlength=size)  # (a nan pixel: the display pixel nan)
+        shown = ((covered > 0) & (covered >= 0.5 * owned)).reshape(self.shape)
+        if not shown.any():
+            return None
+        self.ever |= shown
+        rows, cols = np.nonzero(shown)
+        cut = (slice(rows.min(), rows.max() + 1), slice(cols.min(), cols.max() + 1))
+        with np.errstate(invalid="ignore", divide="ignore"):
+            sci_m, diff_m = (np.where(shown, (a / covered).reshape(self.shape), np.nan)[cut].astype(np.float32)
+                             for a in (science, difference))
+        return dict(science=sci_m, difference=diff_m,
+                    extent=self.extent(rows.min(), rows.max() + 1, cols.min(), cols.max() + 1))
+
+    def _runs(self, dx, dy, keep):
+        """The stretches of a sampled line (dx, dy: arcsec, along its last axis) where keep holds and some frame has an
+        image: [(m, 2) arrays]."""
+        r, c = (np.floor(a).astype(np.int64) for a in self.pixel_of(dx, dy))
+        inside = (r >= 0) & (r < self.shape[0]) & (c >= 0) & (c < self.shape[1])
+        keep = keep & inside
+        keep[inside] &= self.ever[r[inside], c[inside]]
+        out = []
+        for x, y, k in zip(np.atleast_2d(dx), np.atleast_2d(dy), np.atleast_2d(keep)):
+            edges = np.flatnonzero(np.diff(np.r_[0, k.astype(np.int8), 0]))
+            out += [np.c_[x[a:b], y[a:b]].astype(np.float32) for a, b in zip(edges[::2], edges[1::2]) if b - a > 1]
+        return out
+
+    def grid(self):
+        """hdps's minipix grid where any frame has an image, as lists of (m, 2) arrays (arcsec from the block centre):
+        each tile's minipix edges (0-based tile pixel 32 m - 0.5) inside the sky the tile holds, and the edges between
+        tiles' skies (the Dec bands' edges and, within each band, its RA slots' edges: skymap_shim's tessellation),
+        which are minipix edges too. (A line straight in one tile's plane is straight in the main tile's: both are
+        gnomonic; it is sampled every tile pixel only to find where it leaves its tile's sky.)"""
+        n = sh.SEGMENT_PIXEL_SIZE
+        along = np.arange(-0.5, n, 1.0)
+        edges = np.arange(0, n + 1, MINIPIX_PX) - 0.5
+        across, along = np.meshgrid(edges, along, indexing="ij")  # (line, point along it)
+        lines = []
+        for tile, w in self.wcs.items():
+            for x, y in ((across, along), (along, across)):  # the lines of constant x, then of constant y
+                ra, dec = w.all_pix2world(x.ravel(), y.ravel(), 0)
+                mine = (sh.radec_to_composite_id(ra, dec)[0] == tile).reshape(x.shape)
+                dx, dy = (a.reshape(x.shape) for a in block_offsets(ra, dec))
+                lines += [np.r_[s[:1], s[-1:]] for s in self._runs(dx, dy, mine)]  # straight: its two ends
+        # the edges between tiles' skies, over the display grid's sky (its outline's RA, Dec range)
+        x0, x1, y0, y1 = self.extent(0, self.shape[0], 0, self.shape[1])
+        t = np.linspace(0.0, 1.0, 400)
+        ra, dec = block_radec(np.r_[x0 + t * (x1 - x0), np.full(400, x1), x1 - t * (x1 - x0), np.full(400, x0)],
+                              np.r_[np.full(400, y0), y0 + t * (y1 - y0), np.full(400, y1), y1 - t * (y1 - y0)])
+        tile_ra = float(sh.tile_center(np.array([TILE]))[0][0])
+        rel = (ra - tile_ra + 180.0) % 360.0 - 180.0  # RA about the main tile's centre (the grid may cross RA 0)
+        ra_lo, ra_hi, dec_lo, dec_hi = tile_ra + rel.min(), tile_ra + rel.max(), dec.min(), dec.max()
+        seams = []
+        sample = np.linspace(0.0, 1.0, 4000)
+        for band in np.arange(np.floor((dec_lo - sh.DEC_MIN) / sh.SPACING_DEG),
+                              np.ceil((dec_hi - sh.DEC_MIN) / sh.SPACING_DEG) + 1):
+            lo = sh.DEC_MIN + band * sh.SPACING_DEG  # the band's lower edge (constant Dec: curved in the plane)
+            seams += [np.r_[s[::10], s[-1:]] for s in self._runs(*block_offsets(ra_lo + sample * (ra_hi - ra_lo),
+                                                                                    np.full(len(sample), lo)),
+                                                                  np.ones(len(sample), bool))]
+            spacing = sh.SPACING_DEG / np.cos(np.radians(lo + 0.5 * sh.SPACING_DEG))  # its RA slots' width
+            for k in np.arange(np.floor(ra_lo / spacing), np.ceil(ra_hi / spacing) + 1):
+                edge_dec = lo + np.linspace(0.0, sh.SPACING_DEG, 400)  # a slot's edge (constant RA: straight)
+                seams += [np.r_[s[:1], s[-1:]] for s in self._runs(*block_offsets(np.full(400, (k * spacing) % 360.0),
+                                                                                  edge_dec), np.ones(400, bool))]
+        return lines, seams
+
+    def summary(self, mosaics, footprints, label):
+        """What the field movie draws from (movie data's "window"); label: what the window is, for the title."""
+        lines, seams = self.grid()
+        return dict(mosaics=mosaics, footprints=footprints, view=self.view, grid=lines, seams=seams, bin=self.bin,
+                    tiles=sorted(int(t) for t in self.wcs), label=label)
+
+
+class ReferenceMask:
+    """The field movies' grey in the Difference panel ([output] movie_mask_reference_e, movie_mask_radius_px,
+    movie_mask_growth_px): the pixels about the stars brighter than the threshold in a frame's own reference coadd,
+    the disc growing by `growth` px per magnitude above it (as hdps's bright-star mask grows). The coadd is the one
+    hdps's CoaddReferenceProvider subtracted: the frame's camera's of the tile, else any camera's; the deepest
+    (NCOMBINE), then by name. Display only; made from the run's coadds, so a finished run's movies get it too."""
+
+    def __init__(self, coadds, threshold, radius, growth):
+        self.coadds, self.threshold, self.radius, self.growth = Path(coadds), float(threshold), radius, growth
+        self.tiles, self.display = {}, {}
+
+    def _coadd(self, camera, tile):
+        from astropy.io import fits
+
+        everyone = sorted(self.coadds.glob(f"*_tile_{tile:06d}_*.fits"))
+        mine = [p for p in everyone if f"_{camera}_tile_" in p.name] or everyone
+
+        def depth(p):
+            try:
+                with fits.open(p) as h:
+                    return int(h[0].header.get("NCOMBINE", 0))
+            except Exception:
+                return 0
+
+        return max(mine, key=lambda p: (depth(p), p.name)) if mine else None
+
+    def tile(self, camera, tile):
+        """(mask over the tile's pixels, the tile's header), or (None, None) with no coadd of the tile."""
+        from astropy.io import fits
+        from scipy.ndimage import distance_transform_edt
+
+        key = (camera, tile)
+        if key not in self.tiles:
+            path = self._coadd(camera, tile)
+            if path is None:
+                self.tiles[key] = (None, None)
+                return self.tiles[key]
+            with fits.open(path) as h:
+                hdu = h["SCI"] if "SCI" in h else h[0]
+                ref, header = np.nan_to_num(np.asarray(hdu.data, np.float32)), hdu.header.copy()
+            masked = np.zeros(ref.shape, bool)
+            peak, k = float(ref.max()), 0
+            while self.threshold * 10 ** (0.4 * k) < peak and k <= 12:  # each magnitude brighter: a wider disc
+                level = ref > self.threshold * 10 ** (0.4 * k)
+                masked |= distance_transform_edt(~level) <= self.radius + self.growth * k
+                k += 1
+            self.tiles[key] = (masked, header)
+        return self.tiles[key]
+
+    def block(self, camera, cutout):
+        """The block cut-out with its masked difference pixels nan (a copy), or as it was with no coadd."""
+        masked = self.tile(camera, TILE)[0]
+        if cutout is None or masked is None:
+            return cutout
+        m = masked[block_cut()[0]]
+        return dict(cutout, difference=np.where(m, np.nan, cutout["difference"]).astype(np.float32))
+
+    def window(self, camera, image, mosaic, tiles):
+        """A whole-window image (WindowMosaic.frame) with its masked difference pixels nan (a copy): a display pixel
+        is masked when a quarter of the tile pixels it holds are."""
+        if image is None:
+            return image
+        if camera not in self.display:
+            size = mosaic.ever.size
+            hit, held = np.zeros(size), np.zeros(size)
+            for tile in tiles:
+                masked, header = self.tile(camera, tile)
+                if masked is None:
+                    continue
+                index = mosaic._tile(tile, header)
+                held += mosaic.owned[tile]
+                hit += np.bincount(index[masked.ravel() & (index >= 0)], minlength=size)
+            self.display[camera] = ((held > 0) & (hit >= 0.25 * held)).reshape(mosaic.shape)
+        x0, x1, y0, y1 = image["extent"]  # back to the display rows and columns WindowMosaic.frame cut
+        r0, c0 = (int(round(a)) for a in mosaic.pixel_of(x0, y0))
+        h, w = image["difference"].shape
+        m = self.display[camera][r0:r0 + h, c0:c0 + w]
+        return dict(image, difference=np.where(m, np.nan, image["difference"]).astype(np.float32))
 
 
 def alerts_of(work, stem, follow, star_ra, star_dec):
@@ -946,7 +1260,8 @@ def main(argv=None):
     if args.observation is not None:  # the stars kept: out to a readout window's far corner, wherever it falls
         from mesa_argus import runconfig
 
-        window = runconfig.resolve(runconfig.load(args.observation))["field"]["window"]
+        resolved = runconfig.resolve(runconfig.load(args.observation))
+        window = resolved["field"]["window"]
         side = (window or ARGUS_CONFIG.telescope.n_pixels_x) * MINIPIX_PX * SKY_PX if window else \
             ARGUS_CONFIG.telescope.n_pixels_x * ARGUS_CONFIG.telescope.plate_scale
         AREA_HALF = max(side * np.sqrt(2), HALF + MARGIN)
@@ -957,6 +1272,13 @@ def main(argv=None):
     cfg = copy.deepcopy(ARGUS_CONFIG)
     for key, value in (FIELDS[args.field]["site"] or {}).items():  # the instrument stays Argus; only the site moves
         setattr(cfg.observatory, key, value)
+    if args.observation is not None:  # the observation's PSF ([argussim.telescope] psf_model, spot_size) for the Scene
+        # and the sensor's PSFs (mesa_argus.sensor.PSFs); the other [argussim] values are not applied to ArgusSim here
+        telescope = resolved["argussim"]["telescope"]
+        cfg.telescope.psf_model, cfg.telescope.spot_size = telescope["psf_model"], telescope["spot_size"]
+    print(f"PSF: ArgusSim's {cfg.telescope.psf_model} model"
+          + (f" (GaussianPSF: optical spot {cfg.telescope.spot_size} um rms with the Moffat seeing; no Zemax file read)"
+             if cfg.telescope.psf_model == "gaussian" else ""), flush=True)
     ab = ABPhot(throughput=SystemThroughput(filters={"g": True, "rho": True}, throughput_loss=cfg.telescope.throughput_loss),
                 collecting_area=cfg.telescope.collecting_area)
 
@@ -997,7 +1319,9 @@ def main(argv=None):
     ut = (times.jd - np.floor(times[0].jd - 0.5) - 0.5) * 24  # UT hours since 0h on the first date
 
     # 3. constant stars
-    static_rate, static_mag, templates, _ = constant_star_rates(stars, pulsators, ab)
+    workers = (runconfig.resolve(runconfig.load(args.observation))["stars"]["photometry_workers"]
+               if args.observation is not None else 1)
+    static_rate, static_mag, templates, _ = constant_star_rates(stars, pulsators, ab, workers)
     G = column(stars, "Gmag")  # as seen where observed (a synthetic field: through its own sightline)
 
     # 4. followed stars: real variables and placed stars from their model files, with the observation's dust
@@ -1063,9 +1387,12 @@ def main(argv=None):
     from mesa_argus import hdps_worker, runconfig, sensor
 
     obs = runconfig.resolve(runconfig.load(args.observation))
-    for t in obs["hdps"]["tasks"]:  # hdps's tile images: only the tile the movie shows
+    # the field movie's images: the whole readout window (output.movie_window_px; hdps's images of every tile it
+    # touches, WindowMosaic) when the movie or its data is made, else the block (block_cutouts: the tile it is in)
+    whole = obs["output"]["movie_window_px"] > 0 and (not args.no_render or obs["output"]["movie_data"])
+    for t in obs["hdps"]["tasks"]:  # hdps's tile images: those the movie shows (None: every tile hdps differenced)
         if t["type"] == "TileImageOutputTask":
-            t["config"]["tile_ids"] = [int(TILE)]
+            t["config"]["tile_ids"] = None if whole else [int(TILE)]
     reference_pass = args.hdps_pass == "reference"
     window_px = int(round(obs["field"]["window"] * MINIPIX_PX * SKY_PX / ARGUS_CONFIG.telescope.plate_scale))
     star_ra, star_dec = block_radec(np.asarray(stars["dx"]), np.asarray(stars["dy"]))
@@ -1074,26 +1401,56 @@ def main(argv=None):
     east, north = obs["field"]["window_offset"]  # where the readout window's centre lies from the field (arcmin)
     window_ra, window_dec = block_radec(np.array([-60.0 * east]), np.array([60.0 * north]))  # the block's +x is west
     window_projector = sensor.Projector(window_ra, window_dec, times, Layout.from_config())
-    psfs = sensor.PSFs(ARGUS_CONFIG)
+    psfs = sensor.PSFs(cfg, wing=obs["image"])  # the observation's psf_model, with its [image] PSF options
+    if psfs.gaussian and obs["image"]["psf_halo"]:
+        print("PSF: [image] psf_halo_taper not used (it rounds Zemax's square optics array; the Gaussian has none)",
+              flush=True)
     work = args.work / B
     expected_flux = static_rate[B][:, 0] * args.exptime
     for k in follow:
         expected_flux[k] = 0.0 if k in transient else np.mean(ref_rate[k][B]) * args.exptime
     frames = range(0, len(times), args.stride)
     seeds = np.random.SeedSequence(args.seed).spawn(len(times))
+    calibration = None  # the simulation's WCS and zero point in each raw frame, when the chain takes them from it
+    if any(t["type"] == "TrueCalibrationTask" for t in obs["hdps"]["tasks"]):
+        from mesa_argus import true_calibration
+
+        detection = next(t["config"] for t in obs["hdps"]["tasks"] if t["type"] == "SourceDetectionTask")
+        calibration = dict(zp_rate=true_calibration.ab_zero_point(ab, BANDS[B], AIRMASS_GRID), detection=detection,
+                           zp=[], share=[], residual=[])
     movie_file = args.output.with_suffix(".movie.joblib")
 
-    def movies(frames, measured, alerted, cutouts, records):
-        """8. the movies: the field movie (the panels as before, its images hdps's tile and difference image around
-        the block) and the pipeline movie (each raw frame's preview, where it falls on the sensor, hdps's detections
-        and WCS)."""
+    def movies(frames, measured, alerted, cutouts, records, window=None):
+        """8. the movies: the field movie (the panels as before, its images hdps's tile and difference image of the
+        whole readout window (window: WindowMosaic.summary), or around the block) and the pipeline movie (each raw
+        frame's preview, where it falls on the sensor, hdps's detections and WCS)."""
         if not args.no_render:
-            draw_data = movie_data(args, stars, scene, follow, transient, models, follow_sed, follow_rate, follow_cycle,
-                                   ref_rate, static_mag, rates_at, true_mag, measured, frames, times, bjd, ut, airmass,
-                                   seeing, G, in_block, ab, cutouts, alerted=alerted)
-            draw_data.update(alerted=alerted, frame_j=list(frames), labels=labels, pulsators=pulsators, source=source,
-                             gaia_var=gaia_var, templates=templates, survey=survey, cutouts=cutouts)
-            render(args, draw_data, frames)
+            o = obs["output"]
+            # the field movies asked for ([output] movie_views): the window view (<name>_night_<band>.mp4) and the
+            # block's own tile (_block.mp4); without whole-window images, the block alone under the first name
+            views = list(dict.fromkeys(o["movie_views"])) if window is not None else ["block"]
+            coadds = Path(args.reference) if args.reference else args.scene.parent / "reference" / "hdps" / B / "coadds"
+            mask = (ReferenceMask(coadds, o["movie_mask_reference_e"], o["movie_mask_radius_px"], o["movie_mask_growth_px"])
+                    if o["movie_mask_reference_e"] > 0 and coadds.is_dir() else None)
+            cameras = [f"ARGUSSIM-{int(r['tel_id']):04d}" for r in records]
+            cuts = [mask.block(c, k) for c, k in zip(cameras, cutouts)] if mask is not None else cutouts
+            for view in views:
+                win = window if view == "window" else None
+                if win is not None and mask is not None:
+                    mosaic = WindowMosaic(window["footprints"], o["movie_window_px"], o["movie_window_zoom"])
+                    win = dict(window, mosaics=[mask.window(c, m, mosaic, window["tiles"])
+                                                for c, m in zip(cameras, window["mosaics"])])
+                draw_data = movie_data(args, stars, scene, follow, transient, models, follow_sed, follow_rate,
+                                       follow_cycle, ref_rate, static_mag, rates_at, true_mag, measured, frames, times,
+                                       bjd, ut, airmass, seeing, G, in_block, ab, cuts, alerted=alerted, window=win)
+                draw_data.update(alerted=alerted, frame_j=list(frames), labels=labels, pulsators=pulsators,
+                                 source=source, gaia_var=gaia_var, templates=templates, survey=survey, cutouts=cuts,
+                                 masked=mask is not None)
+                one = copy.copy(args)
+                if view == "block" and len(views) > 1:
+                    one.output = args.output.with_name(args.output.stem + "_block.mp4")
+                render(one, draw_data, frames)
+                print(f"field movie ({view}) -> {one.output.name}", flush=True)
         if args.pipeline_movie:
             from mesa_argus import pipeline_movie
 
@@ -1106,7 +1463,8 @@ def main(argv=None):
         if not movie_file.exists():
             raise SystemExit(f"{movie_file}: no movie data (run with output.movie_data = true)")
         saved = joblib.load(movie_file)
-        movies(saved["frames"], saved["measured"], saved["alerted"], saved["cutouts"], movie_records(saved["records"]))
+        movies(saved["frames"], saved["measured"], saved["alerted"], saved["cutouts"], movie_records(saved["records"]),
+               saved.get("window"))  # (movie data from before the whole-window images: the block)
         print(f"saved {args.output} (from {movie_file.name})")
         return
 
@@ -1114,6 +1472,7 @@ def main(argv=None):
           f"({window_px} px window) -> {work / 'raw'}" + (" (already there: measuring them again)" if args.measure_only
                                                            else ""), flush=True)
     records = []
+    layout = Layout.from_config()
     for n, j in enumerate(frames):  # 6. the camera: each exposure rendered and written as a raw frame
         row = survey[j]
         x, y, angle = projector.pixels(j, row["theta_deg"], row["ota"])
@@ -1129,15 +1488,38 @@ def main(argv=None):
             image = sensor.render(x[1:], y[1:], electrons, angle[1:], B, seeing[j], scene.background(B, j), win, psfs,
                                   np.random.default_rng(seeds[j]), ARGUS_CONFIG.telescope.readnoise,
                                   ARGUS_CONFIG.telescope.fullwell)
-            path = write_raw_frame(work / "raw", image, win, row, args)
+            cards = None
+            if calibration is not None:
+                w, residual = projector.wcs(j, row["theta_deg"], row["ota"], win[:2])
+                zp_total = 2.5 * np.log10(np.interp(airmass[j], AIRMASS_GRID, calibration["zp_rate"]) * args.exptime)
+                ai = int(np.abs(psfs.angles(B) - angle[0]).argmin())  # the field's tabulated field angle
+                share = true_calibration.aperture_fraction(psfs, B, seeing[j], ai, calibration["detection"])
+                cards = true_calibration.cards(w, residual, zp_total, share)
+                for k, v in (("zp", zp_total), ("share", share), ("residual", residual)):
+                    calibration[k].append(v)
+            path = write_raw_frame(work / "raw", image, win, row, args, cards)
         sx, sy = x[1:] - win[0], y[1:] - win[1]  # every star in the window's pixels (truth)
         bright = (G < 17) & (sx > 20) & (sx < win[2] - 20) & (sy > 20) & (sy < win[3] - 20)  # for the WCS check
         records.append(dict(path=path, window=win, field_xy=(x[0], y[0]), j=j, sx=sx, sy=sy,
                             preview=binned(image, PREVIEW_BIN), preview_bin=PREVIEW_BIN,
                             truth=(sx[bright], sy[bright], star_ra[bright], star_dec[bright]), tel_id=int(row["tel_id"]),
-                            ratchet=int(row["ratchet"]), field_angle=float(row["field_angle"])))
+                            ratchet=int(row["ratchet"]), field_angle=float(row["field_angle"]),
+                            footprint=window_footprint(win, row, layout) if whole else None))
         if (n + 1) % max(1, len(frames) // 10) == 0:
             print(f"  rendered {n + 1}/{len(frames)}", flush=True)
+    if calibration is not None and calibration["zp"]:
+        print(f"calibration from the simulation (TrueCalibrationTask): AB zero point {min(calibration['zp']):.3f}-"
+              f"{max(calibration['zp']):.3f} mag (total e-), hdps's aperture holds {min(calibration['share']):.3f}-"
+              f"{max(calibration['share']):.3f} of a star's e-; true WCS fit within "
+              f"{max(calibration['residual']) * 1e3:.1f} mpx", flush=True)
+    mosaic = None  # the field movie's whole-window images (WindowMosaic), made from hdps's tile images below
+    if whole and not reference_pass:
+        zoom = obs["output"]["movie_window_zoom"]
+        mosaic = WindowMosaic([r["footprint"] for r in records], obs["output"]["movie_window_px"], zoom)
+        if zoom > 1:  # hdps's tile images: only the tiles the zoomed view reaches
+            for t in obs["hdps"]["tasks"]:
+                if t["type"] == "TileImageOutputTask":
+                    t["config"]["tile_ids"] = mosaic.tiles()
 
     # 7. hdps's worker over the raw frames (mesa_argus.hdps_worker). The reference pass makes hdps's coadds
     # (transients left out); the science pass runs the whole chain against them.
@@ -1152,9 +1534,13 @@ def main(argv=None):
     if not args.measure_only:
         result = hdps_worker.run(obs, work / "raw", work, reference_dir=args.reference, worker_id=f"{FIELD}_{B}")
         print(f"hdps worker: {result}", flush=True)
+    tile_bytes = sum(p.stat().st_size for p in work.glob("epoch_*_tile_*.fits"))
+    print(f"hdps's tile images: {tile_bytes / 1e9:.2f} GB ({tile_bytes / 1e6 / max(1, len(records)):.0f} MB per frame)"
+          + ("" if obs["output"]["raw"] else ", deleted at the end (output.raw = false)"), flush=True)
 
     # the measurements, from hdps's products: the solved frame's catalogue and zero point, the tile images, alerts
     rows, measured, alerted, cutouts, alert_rows = [], [], [], [], []
+    mosaics = []
     n_alerts = n_skipped = 0
     for record in records:
         j, stem = record["j"], record["path"].stem
@@ -1162,6 +1548,7 @@ def main(argv=None):
         catalogue, zp, star_of, wcs = measure_frame(work, stem, B, obs, record["sx"], record["sy"], expected_flux)
         record.update(catalogue=catalogue, zp=zp, wcs=wcs, failed=None if catalogue is not None else "not solved by hdps")
         cutouts.append(block_cutouts(work, stem))
+        mosaics.append(mosaic.frame(work, stem) if mosaic is not None else None)
         n_skipped += catalogue is None
         frame_alerts = alerts_of(work, stem, follow, star_ra, star_dec)
         table = alert_table(work, stem)
@@ -1221,6 +1608,15 @@ def main(argv=None):
                              ratchet=int(row["ratchet"]), field_angle=float(row["field_angle"]), time_utc=row["time"]))
         measured.append(this_frame)
     print(f"hdps: {n_alerts} alerts from {len(frames)} frames ({n_skipped} frames hdps could not process)", flush=True)
+    window_images = None
+    if mosaic is not None:
+        side, zoom = obs["field"]["window"], obs["output"]["movie_window_zoom"]
+        window_images = mosaic.summary(mosaics, [r["footprint"] for r in records],
+                                       (f"a {side} × {side}-minipix readout window" if side else "the whole sensor")
+                                       + (f" (×{zoom:g} about the block)" if zoom > 1 else ""))
+        print(f"field movie: {window_images['label']}, hdps's tiles {window_images['tiles']} in {mosaic.bin} x "
+              f"{mosaic.bin} tile pixels per image pixel ({mosaic.shape[1]} x {mosaic.shape[0]}); "
+              f"{sum(m is not None for m in mosaics)}/{len(mosaics)} frames with an image", flush=True)
     if alert_rows:  # <name>_night_<band>.alerts.csv: every hdps alert row, its features and its truth
         import pandas as pd
 
@@ -1238,9 +1634,9 @@ def main(argv=None):
         import joblib
 
         joblib.dump(dict(frames=list(frames), measured=measured, alerted=alerted, cutouts=cutouts,
-                         records=[slim_record(r) for r in records]), movie_file, compress=3)
-        print(f"movie data -> {movie_file.name}", flush=True)
-    movies(frames, measured, alerted, cutouts, movie_records([slim_record(r) for r in records]))
+                         records=[slim_record(r) for r in records], window=window_images), movie_file, compress=3)
+        print(f"movie data -> {movie_file.name} ({movie_file.stat().st_size / 1e6:.0f} MB)", flush=True)
+    movies(frames, measured, alerted, cutouts, movie_records([slim_record(r) for r in records]), window_images)
     if not obs["output"]["raw"]:  # the raw frames and hdps's bulky per-frame products (read above)
         shutil.rmtree(work / "raw", ignore_errors=True)
         shutil.rmtree(work / "solved", ignore_errors=True)
@@ -1266,23 +1662,26 @@ def alert_marks(d, n, fps):
     return list(marks.values())
 
 
-def draw_alert_marks(ax, marks):
+def draw_alert_marks(ax, marks, size=24, lift=4.5, points=0.0):
     """Metal Gear Solid style: a red exclamation mark, white-outlined, above the object (clipped to the panel: the
-    cut-out alerts are made on is larger than the block shown). The marks' Text artists."""
+    cut-out alerts are made on is larger than the block shown). size: its font size (points) at scale 1; it stands
+    lift arcsec and `points` points above the object. The marks' Text artists."""
     from matplotlib import patheffects
+    from matplotlib.transforms import offset_copy
 
-    return [ax.text(dx, dy + 4.5, "!", ha="center", va="bottom", fontsize=24 * scale, weight="heavy", color=RED, alpha=alpha,
-                    zorder=10, clip_on=True,
-                    path_effects=[patheffects.withStroke(linewidth=3.5, foreground="white", alpha=alpha)])
+    where = offset_copy(ax.transData, fig=ax.figure, y=points, units="points") if points else ax.transData
+    return [ax.text(dx, dy + lift, "!", ha="center", va="bottom", fontsize=size * scale, weight="heavy", color=RED,
+                    alpha=alpha, zorder=10, clip_on=True, transform=where,
+                    path_effects=[patheffects.withStroke(linewidth=3.5 * size / 24, foreground="white", alpha=alpha)])
             for dx, dy, alpha, scale in marks]
 
 
-def set_alert_mark(text, dx, dy, alpha, scale):
-    """An alert mark (draw_alert_marks) moved and faded in place."""
+def set_alert_mark(text, dx, dy, alpha, scale, size=24, lift=4.5):
+    """An alert mark (draw_alert_marks, with the same size and lift) moved and faded in place."""
     from matplotlib import patheffects
 
-    text.set(position=(dx, dy + 4.5), fontsize=24 * scale, alpha=alpha, visible=True,
-             path_effects=[patheffects.withStroke(linewidth=3.5, foreground="white", alpha=alpha)])
+    text.set(position=(dx, dy + lift), fontsize=size * scale, alpha=alpha, visible=True,
+             path_effects=[patheffects.withStroke(linewidth=3.5 * size / 24, foreground="white", alpha=alpha)])
 
 
 def alert_spans(d, k, n):
@@ -1308,6 +1707,7 @@ def model_hours(ut):
 
 
 MAX_SHOWN = 6  # followed stars the movie draws (an injected run follows hundreds; all are measured and labelled)
+WINDOW_EDGE = "#f0a202"  # the frame's readout window, outlined over the whole-window images
 
 
 def choose_shown(follow, stars, rel, alerted):
@@ -1330,9 +1730,11 @@ def choose_shown(follow, stars, rel, alerted):
 
 
 def movie_data(args, stars, scene, follow, transient, models, follow_sed, follow_rate, follow_cycle, ref_rate, static_mag,
-               rates_at, true_mag, measured, frames, times, bjd, ut, airmass, seeing, G, in_block, ab, cutouts, alerted=None):
+               rates_at, true_mag, measured, frames, times, bjd, ut, airmass, seeing, G, in_block, ab, cutouts, alerted=None,
+               window=None):
     """Everything draw() needs that stays fixed through the movie: models, display limits, colours, each star's
-    mean over the night; which followed stars it draws (choose_shown)."""
+    mean over the night; which followed stars it draws (choose_shown). window: the whole readout window's images
+    (WindowMosaic.summary), drawn in place of the block's, with their own image scales."""
     B = args.band
     # transients' model light curves on the light-curve panel's time grid (periodic models are drawn from their cycle)
     model_curve = {}
@@ -1351,6 +1753,16 @@ def movie_data(args, stars, scene, follow, transient, models, follow_sed, follow
     rgb = dict(w_beta=1.0, vmax=float(np.nanpercentile(values, 99.95)), lw=float(max(noise, 1.0)))
     dvals = np.concatenate([np.abs(a[np.isfinite(a)]).ravel() for a in diffs]) if diffs else np.array([1.0])
     dlim = float(max(np.nanpercentile(dvals, 99.9), 3 * noise, 1.0))
+    if window is not None:  # the same, from the window's images (binned: lower noise and peaks than the tile's)
+        images = [m for m in window["mosaics"] if m is not None]
+        every = max(1, len(images) // 16)  # (every few rows of each frame: a night's images hold ~10^8 pixels)
+        above = [(m["science"] - np.nanmedian(m["science"]))[::every] for m in images]
+        wvals = np.concatenate([a[np.isfinite(a)].ravel() for a in above]) if above else np.array([1.0])
+        wnoise = 1.4826 * np.nanmedian(np.abs(wvals - np.nanmedian(wvals)))
+        wd = np.concatenate([np.abs(m["difference"][::every][np.isfinite(m["difference"][::every])]) for m in images]
+                            ) if images else np.array([1.0])
+        window = dict(window, rgb=dict(w_beta=1.0, vmax=float(np.nanpercentile(wvals, 99.95)), lw=float(max(wnoise, 1.0))),
+                      dlim=float(max(np.nanpercentile(wd, 99.9), 3 * wnoise, 1.0)))
     # each star's mean over the night: the measurements' own, and the model's (a transient: where it is lit); the
     # light-curve axes cover 99.5% of the measurements (a rare bad cross-match must not flatten the rest; it is drawn
     # at the edge)
@@ -1381,13 +1793,16 @@ def movie_data(args, stars, scene, follow, transient, models, follow_sed, follow
     if sed_values.size == 0:  # nothing lit all night (e.g. a transient after the window)
         sed_values = np.array([1e-16, 1e-14])
     palette = [BLUE, RED, "#2ca02c", "#9467bd", "#8c564b", "#e377c2", "#bcbd22", "#17becf"]  # the brand's dots first
-    return dict(stars=stars, scene=scene, follow=follow, shown=shown, transient=transient, models=models, follow_sed=follow_sed,
-                follow_cycle=follow_cycle, model_curve=model_curve, static_mag=static_mag, true_mag=true_mag,
-                times=times, bjd=bjd, ut=ut, airmass=airmass, seeing=seeing, G=G, in_block=in_block, ab=ab,
-                colour_of={k: palette[i % len(palette)] for i, k in enumerate(shown)}, rgb=rgb, dlim=dlim, cmd_c=cmd_c, cmd_m=cmd_m,
-                rel=rel, sed_ylim=(float(np.percentile(sed_values, 3)) / 1.5, float(sed_values.max()) * 1.5),
-                centre=block_centre_label(), measured=measured,
-                history={k: {"t": [], "m": [], "e": [], "true": []} for k in shown})
+    out = dict(stars=stars, scene=scene, follow=follow, shown=shown, transient=transient, models=models, follow_sed=follow_sed,
+               follow_cycle=follow_cycle, model_curve=model_curve, static_mag=static_mag, true_mag=true_mag,
+               times=times, bjd=bjd, ut=ut, airmass=airmass, seeing=seeing, G=G, in_block=in_block, ab=ab,
+               colour_of={k: palette[i % len(palette)] for i, k in enumerate(shown)}, rgb=rgb, dlim=dlim, cmd_c=cmd_c, cmd_m=cmd_m,
+               rel=rel, sed_ylim=(float(np.percentile(sed_values, 3)) / 1.5, float(sed_values.max()) * 1.5),
+               centre=block_centre_label(), measured=measured,
+               history={k: {"t": [], "m": [], "e": [], "true": []} for k in shown})
+    if window is not None:
+        out["window"] = window
+    return out
 
 
 class _FrameWriter(FFMpegWriter):
@@ -1399,8 +1814,8 @@ class _FrameWriter(FFMpegWriter):
 
 
 def render(args, d, frames):
-    """The field movie: per frame, hdps's tile and difference image around the block (saved by the engine), and the
-    panels (MovieFrame: the figure built once, each frame drawn over it)."""
+    """The field movie: per frame, hdps's tile and difference images of the readout window (d["window"]) or around
+    the block (saved by the engine), and the panels (MovieFrame: the figure built once, each frame drawn over it)."""
     B = args.band
     args.output.parent.mkdir(parents=True, exist_ok=True)
     writer = _FrameWriter(fps=args.fps, extra_args=["-vcodec", "libx264", "-pix_fmt", "yuv420p",
@@ -1410,7 +1825,7 @@ def render(args, d, frames):
     movie = MovieFrame(fig, args, d)
     with writer.saving(fig, str(args.output), dpi=args.dpi):
         for n, j in enumerate(frames):
-            c = d["cutouts"][n]
+            c = d["window"]["mosaics"][n] if "window" in d else d["cutouts"][n]
             exposures = {B: None if c is None else dict(image=c["science"], difference=c["difference"],
                                                        background=float(np.nanmedian(c["science"])), extent=c["extent"])}
             for k in d["shown"]:
@@ -1547,26 +1962,35 @@ class MovieFrame:
         resid_ax.yaxis.set_label_coords(-0.075, 0.5)
         resid_ax.invert_yaxis()
 
-        # the exposure as hdps sees it: its reprojected tile around the block (sky level removed), on an asinh stretch
-        rgb = d["rgb"]
+        # the exposure as hdps sees it: its reprojected tiles (sky level removed), on an asinh stretch: the whole readout
+        # window (d["window"], WindowMosaic: hdps's tiles on one grid, hdps's minipix grid over them) or around the block
+        self.window = window = d.get("window")
+        rgb = window["rgb"] if window else d["rgb"]
         self.norm = norm = AsinhNorm(linear_width=rgb["lw"], vmin=0.0, vmax=rgb["vmax"])
         self.face = image_ax.get_facecolor()
         whole = (-HALF, HALF, -HALF, HALF)
-        self.image = image_ax.imshow(np.zeros((2, 2)), origin="lower", interpolation="nearest", extent=whole, cmap="gray",
-                                     vmin=0, vmax=1)
+        self.image = image_ax.imshow(np.zeros((2, 2)), origin="lower", extent=whole, cmap="gray", vmin=0, vmax=1,
+                                     interpolation="antialiased" if window else "nearest")  # (the window: > the panel)
         self.missing = image_ax.text(0, 0, "hdps could not process\nthis frame", color="white", ha="center", va="center",
                                      fontsize=11, visible=False)
         step = MINIPIX_PX * SKY_PX
-        for v in np.arange(-HALF, HALF + 1e-6, step):  # the minipix grid
-            image_ax.plot([v, v], [-HALF, HALF], color="white", lw=0.5, alpha=0.35)
-            image_ax.plot([-HALF, HALF], [v, v], color="white", lw=0.5, alpha=0.35)
+        if window:  # hdps's minipix grid, the edges between its tiles' skies (WindowMosaic.grid), the block outlined
+            self.grid_lines = []  # (each frame shows them inside its own readout window: update)
+            for ax, colour, alpha in ((image_ax, "white", 0.3), (diff_ax, NAVY, 0.15)):
+                self.grid_lines += [ax.add_collection(LineCollection(window["grid"], colors=colour, linewidths=0.3,
+                                                                     alpha=alpha)),
+                                    ax.add_collection(LineCollection(window["seams"], colors=colour, linewidths=0.6,
+                                                                     alpha=2 * alpha))]
+                ax.add_patch(Rectangle((-HALF, -HALF), 2 * HALF, 2 * HALF, fill=False, ec=BLUE, lw=1.0))
+            self.outline = [ax.plot([], [], color=WINDOW_EDGE, lw=0.8)[0] for ax in (image_ax, diff_ax)]  # (update)
+        else:
+            for v in np.arange(-HALF, HALF + 1e-6, step):  # the minipix grid
+                image_ax.plot([v, v], [-HALF, HALF], color="white", lw=0.5, alpha=0.35)
+                image_ax.plot([-HALF, HALF], [v, v], color="white", lw=0.5, alpha=0.35)
         image_ax.add_patch(Rectangle((-step / 2, -step / 2), step, step, fill=False, ec=BLUE, lw=1.2))  # the central minipix
-        for k in follow:
-            image_ax.add_patch(Circle((stars["dx"][k], stars["dy"][k]), 3.0, fill=False, ec=colour_of[k], lw=1.2))
-            image_ax.text(stars["dx"][k] + 3.2, stars["dy"][k] + 3.2, labels[k], fontsize=8, color=colour_of[k], weight="bold",
-                          clip_on=True)
-        edge = HALF + 2
-        image_ax.set(xlim=(-edge, edge), ylim=(-edge, edge), xlabel="Offset (arcsec)", ylabel="Offset (arcsec)")
+        self.star_marks(image_ax, follow, stars, labels, colour_of, 1.2)
+        view = window["view"] if window else (-HALF - 2, HALF + 2, -HALF - 2, HALF + 2)
+        image_ax.set(xlim=view[:2], ylim=view[2:], xlabel="Offset (arcsec)", ylabel="Offset (arcsec)")
         self.telescope = None
         if d["survey"] is None:
             image_ax.set_title(f"Exposure ({SYMBOLS['beta']} blue, {SYMBOLS['rho']} red)", loc="left", weight="bold")
@@ -1586,24 +2010,25 @@ class MovieFrame:
         diverging = plt.get_cmap("RdBu_r").copy()
         diverging.set_bad("#bfbfbf")
         # asinh stretch, linear out to the sky noise: the noise, faint residuals and the large variables all show
-        dnorm = AsinhNorm(linear_width=d["rgb"]["lw"], vmin=-d["dlim"], vmax=d["dlim"])
+        dlim = window["dlim"] if window else d["dlim"]
+        dnorm = AsinhNorm(linear_width=rgb["lw"], vmin=-dlim, vmax=dlim)
         self.blank = np.full((2, 2), np.nan)
-        self.diff = diff = diff_ax.imshow(self.blank, origin="lower", interpolation="nearest", cmap=diverging, norm=dnorm,
-                                          extent=whole)
-        for k in follow:
-            diff_ax.add_patch(Circle((stars["dx"][k], stars["dy"][k]), 3.0, fill=False, ec=colour_of[k], lw=1.0))
-            diff_ax.text(stars["dx"][k] + 3.2, stars["dy"][k] + 3.2, labels[k], fontsize=8, color=colour_of[k], weight="bold",
-                         clip_on=True)
+        self.diff = diff = diff_ax.imshow(self.blank, origin="lower", interpolation="antialiased" if window else "nearest",
+                                          cmap=diverging, norm=dnorm, extent=whole)
+        self.star_marks(diff_ax, follow, stars, labels, colour_of, 1.0)
         self.marks = {image_ax: [], diff_ax: []}  # each image's alert marks (Text artists kept from frame to frame)
+        # the marks' size and height above their object (draw_alert_marks): in the window, smaller, in points
+        self.mark_style = dict(size=9, lift=0.0, points=2.5) if window else dict(size=24, lift=4.5, points=0.0)
         diff_ax.set_title("Difference (PSF-matched)", loc="left", weight="bold")
-        diff_ax.text(0.03, 0.97, "hdps SFFT against its coadd reference" + ("\n(transients left out)" if d["model_curve"] else ""),
+        diff_ax.text(0.03, 0.97, "hdps SFFT against its coadd reference" + ("\n(transients left out)" if d["model_curve"] else "")
+                     + ("\ngrey: stars bright in the reference" if d.get("masked") else ""),
                      transform=diff_ax.transAxes, va="top", fontsize=7.5, color=NAVY,
                      bbox={"facecolor": "white", "alpha": 0.7, "edgecolor": "none", "pad": 2})
-        diff_ax.set(xlim=(-edge, edge), ylim=(-edge, edge), xlabel="Offset (arcsec)")
+        diff_ax.set(xlim=view[:2], ylim=view[2:], xlabel="Offset (arcsec)")
         plt.setp(diff_ax.get_yticklabels(), visible=False)
         dbar = fig.colorbar(diff, ax=diff_ax, orientation="horizontal", fraction=0.05, pad=0.13,
                             label="difference (electrons / pixel)")
-        ticks = [v for v in (10, 100, 1000, 10000) if v <= d["dlim"]]
+        ticks = [v for v in (10, 100, 1000, 10000) if v <= dlim]
         dbar.set_ticks([-v for v in ticks[::-1]] + [0] + ticks)
         dbar.ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:,.0f}"))
         dbar.ax.tick_params(labelsize=7)
@@ -1635,7 +2060,8 @@ class MovieFrame:
         if more:
             what += f" · {more} more simulated outside this view or not shown"
         add_logo(fig, (0.012, 0.925, 0.15, 0.065))
-        fig.suptitle(f"{d['centre']} ({FIELDS[args.field]['name']}) — {block_label()} — {args.date} — "
+        fig.suptitle(f"{d['centre']} ({FIELDS[args.field]['name']}) — {block_label()}"
+                     + (f" in {window['label']}" if window else "") + f" — {args.date} — "
                      f"{args.exptime:g} s exposures — {SYMBOLS[B]}", fontsize=13.5, x=0.58, y=0.985)
         fig.text(0.58, 0.935, "\n".join(textwrap.wrap(what, 120, break_long_words=False)), ha="center", va="top",
                  fontsize=10.5, color=NAVY)
@@ -1645,6 +2071,19 @@ class MovieFrame:
         self.changing_titles = [self.when]  # the time above the light curves: drawn each frame
         self._background = self._size = None
         self._grids = {}  # each axis's grid lines drawn (as the background was drawn)
+
+    def star_marks(self, ax, follow, stars, labels, colour_of, lw):
+        """Each shown followed star's circle (3" about it) and label in an image panel; in the whole window, where
+        arcsec are too small to see, sized in points."""
+        for k in follow:
+            x, y = stars["dx"][k], stars["dy"][k]
+            if self.window:
+                ax.plot(x, y, "o", ms=7, mfc="none", mec=colour_of[k], mew=lw)
+                ax.annotate(labels[k], (x, y), xytext=(3, 3), textcoords="offset points", fontsize=8, color=colour_of[k],
+                            weight="bold", clip_on=True)
+            else:
+                ax.add_patch(Circle((x, y), 3.0, fill=False, ec=colour_of[k], lw=lw))
+                ax.text(x + 3.2, y + 3.2, labels[k], fontsize=8, color=colour_of[k], weight="bold", clip_on=True)
 
     def update(self, exposures, j):
         """Set frame j (survey row j; the frame's number among those shown is d["n"], and the light curves so far are
@@ -1695,20 +2134,33 @@ class MovieFrame:
         self.image_ax.set_facecolor(self.face if e is not None else NAVY)
         self.diff.set_data(e["difference"] if e is not None else self.blank)
         self.diff.set_extent(extent)
+        if self.window:  # the window's own outline; the difference blank where the exposure is (no tile image)
+            # (always an array: matplotlib cannot set an image's alpha from an array back to None)
+            self.diff.set_alpha(np.isfinite(e["image"]).astype(float) if e is not None else np.ones(self.blank.shape))
+            footprint = self.window["footprints"][n]
+            for line in self.outline:
+                line.set_data(footprint[:, 0], footprint[:, 1])
+            for lines in self.grid_lines:
+                lines.set_clip_path(MPath(footprint), lines.axes.transData)
         if self.telescope is not None:
             self.telescope.set_text(f"telescope {int(d['survey']['tel_id'][j])}\n"
                                     f"{float(d['survey']['field_angle'][j]):.2f}° off-axis")
         self.exposure.set_text(f"{args.exptime:g} s · exposure {j + 1}")
-        # the alert marks inside the images (most alerts lie elsewhere in hdps's readout window: drawn, a mark there
-        # would be clipped away entirely; a mark stands on its point, at most ~35" tall)
-        edge, margin = HALF + 2, 50.0
-        marks = [m for m in alert_marks(d, n, args.fps)
-                 if -edge - margin < m[0] < edge + margin and -edge - margin < m[1] + 4.5 < edge]
+        # the alert marks inside the images (around the block, most alerts lie elsewhere in hdps's readout window:
+        # drawn, a mark there would be clipped away entirely; a mark stands on its point, at most ~35" tall)
+        if self.window:
+            x0, x1, y0, y1 = self.window["view"]
+            marks = [m for m in alert_marks(d, n, args.fps) if x0 < m[0] < x1 and y0 < m[1] < y1]
+        else:
+            edge, margin = HALF + 2, 50.0
+            marks = [m for m in alert_marks(d, n, args.fps)
+                     if -edge - margin < m[0] < edge + margin and -edge - margin < m[1] + 4.5 < edge]
+        style = self.mark_style
         for ax, pool in self.marks.items():
             if len(pool) < len(marks):  # the marks made as draw_alert_marks makes them, the same in both images
-                pool += draw_alert_marks(ax, marks[len(pool):])
+                pool += draw_alert_marks(ax, marks[len(pool):], **style)
             for text, mark in zip(pool, marks):
-                set_alert_mark(text, *mark)
+                set_alert_mark(text, *mark, size=style["size"], lift=style["lift"])
             for text in pool[len(marks):]:
                 text.set_visible(False)
 
