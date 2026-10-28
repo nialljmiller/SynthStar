@@ -10,7 +10,9 @@ columns, no bias or dark structure, no flat-field pattern (ImageReductionTask th
 header carries what a real frame's does (hdps's AEGIS test frames): UTCSTART, UTCEND, RATCHNUM, IMGTYPE, TARGET, TARGRA
 (hours), TARGDEC, EXPTIME, AEXPTIME, CAMID, CAMMOD, CAMGAIN, CAMOFFST, and the readout window XORIGIN, YORIGIN, XSIZE,
 YSIZE (a window on the sensor: the simulated region). Plus, not in real headers, FILTER (the band; real frames get it
-from the camera's telescope configuration).
+from the camera's telescope configuration), TELID and SUBARRAY (ArgusSim's telescope number and its subarray: one
+camera, filter and focuser per telescope, none numbered on its own) and TELCONF = TELID (the hardware code of hdps's
+frame key, hdps.core.frame_key; real frames get it from the telescope-configuration registry).
 """
 import numpy as np
 from argus_sim import c as ARGUS
@@ -38,7 +40,8 @@ def camera_id(tel_id):
 
 def write_raw(path, electrons, meta):
     """electrons: the exposure (sensor pixels, electrons). meta: utc_start, utc_end (isot), exptime, ratchet, tel_id,
-    target_ra, target_dec (deg), band, x_origin, y_origin. Writes a raw frame; returns its path."""
+    subarray, target_ra, target_dec (deg), band, x_origin, y_origin; optional cards: more header cards (the
+    simulation's calibration, mesa_argus.true_calibration). Writes a raw frame; returns its path."""
     adu = np.clip(np.round(np.asarray(electrons, float) / GAIN + OFFSET), 0, 65535).astype(np.uint16)
     header = fits.Header()
     header["UTCSTART"] = meta["utc_start"]
@@ -57,5 +60,10 @@ def write_raw(path, electrons, meta):
     header["XORIGIN"], header["YORIGIN"] = int(meta["x_origin"]), int(meta["y_origin"])
     header["XSIZE"], header["YSIZE"] = adu.shape[1], adu.shape[0]
     header["FILTER"] = meta["band"]
+    header["TELID"] = (int(meta["tel_id"]), "ArgusSim telescope number")
+    header["SUBARRAY"] = (int(meta["subarray"]), "ArgusSim subarray number")
+    header["TELCONF"] = (int(meta["tel_id"]), "frame-key hardware code: the telescope number")
+    for key, value in meta.get("cards", {}).items():
+        header[key] = value
     fits.PrimaryHDU(adu, header=header).writeto(path, overwrite=True)  # uint16: astropy writes BITPIX 16, BZERO 32768
     return path

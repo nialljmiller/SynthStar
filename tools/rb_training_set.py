@@ -5,8 +5,8 @@ Every observation's <name>_night_<band>.alerts.csv (night_movie.py) holds every 
 found, its feat_* features exactly as hdps computed them, and what the simulation put there. Each row is labelled:
 
     real (1)    a placed transient or followed variable whose true flux change since the reference
-                (truth_diff_flux) is at least --min-sigma times the candidate's PSF flux error (flux_psf / snr_psf):
-                the difference image really holds that source's change
+                (truth_diff_flux, electrons) is at least --min-sigma times the candidate's PSF flux error in
+                electrons (flux_psf_err_e): the difference image really holds that source's change
     bogus (0)   a constant star (a subtraction residual) or nothing simulated there (noise, artefact)
     dropped     a transient or variable whose change is below that (a candidate there is noise on a real source)
 
@@ -35,8 +35,13 @@ MISSING = -999.0  # RFBundleClassifier maps non-finite feature values to this, a
 
 
 def label(table, min_sigma):
-    """1 real, 0 bogus, -1 dropped (see the module docstring)."""
-    flux_err = np.abs(table["flux_psf"].to_numpy(float)) / np.abs(table["feat_snr_psf"].to_numpy(float))
+    """1 real, 0 bogus, -1 dropped (see the module docstring). The error is in electrons, as the truth is: flux_psf
+    (and flux_psf / snr_psf) is in hdps's segment units, 1.31 x electrons on our tiles (surface brightness), which
+    set the threshold 1.31 x too high before 2026-10-28."""
+    if "flux_psf_err_e" not in table:
+        raise SystemExit("an alerts.csv without flux_psf_err_e (made before 2026-10-28): its PSF flux error is not in "
+                         "electrons, so it cannot be set against truth_diff_flux")
+    flux_err = np.abs(table["flux_psf_err_e"].to_numpy(float))
     change = np.abs(table["truth_diff_flux"].to_numpy(float))
     source = table["truth_class"].isin(["transient", "variable"]).to_numpy()
     out = np.where(table["truth_class"].isin(["constant", "none"]).to_numpy(), 0, -1)
@@ -116,7 +121,7 @@ def main(argv=None):
         values = kept.pop(f"feat_{name}").to_numpy(float)
         kept[name] = np.where(np.isfinite(values), values, MISSING)
     keep = ["label", *FEATURE_NAMES, "truth_class", "truth_label", "truth_star", "truth_mag", "truth_diff_flux",
-            "flux_psf", "ra_deg", "dec_deg", "x", "y", "tanseg_id", "camera_id", "ratchet_num", "observation", "band",
+            "flux_psf", "flux_psf_e", "flux_psf_err_e", "ra_deg", "dec_deg", "x", "y", "tanseg_id", "camera_id", "ratchet_num", "observation", "band",
             "exposure", "time_utc", "exptime", "airmass", "seeing", "tel_id", "ratchet", "field_angle", "alertId",
             "observation_dir", "catalog_file", "catalog_row", "stamps_file", "source_file", "field", "night_date",
             "mask_bright_stars", "moon_phase", "moon_illumination", "moon_alt"]
@@ -131,7 +136,7 @@ def main(argv=None):
                   by_moon_phase_mask={f"{ph}, mask {'on' if m else 'off'}": int(n)
                                       for (ph, m), n in kept.groupby(["moon_phase", "mask_bright_stars"]).size().items()})
     manifest = dict(feature_names=list(FEATURE_NAMES), feature_spec=FEATURE_SPEC_VERSION, missing_value=MISSING,
-                    label_rule=f"real: transient/variable with |truth_diff_flux| >= {args.min_sigma} x flux_psf/snr_psf; "
+                    label_rule=f"real: transient/variable with |truth_diff_flux| >= {args.min_sigma} x flux_psf_err_e; "
                                "bogus: constant star or nothing simulated; else dropped",
                     min_sigma=args.min_sigma, counts=counts, sources=sources,
                     stamps="hdps/<band>/<stamps_file> under observation_dir: npz with row_index (the catalog_row), "

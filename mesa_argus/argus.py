@@ -29,7 +29,9 @@ def apply_style():
     """The Argus branding for every plot: Helvetica Neue (branding/HelveticaNeue.ttc), navy text and axes."""
     from matplotlib import font_manager
 
-    font_manager.fontManager.addfont(str(BRANDING / "HelveticaNeue.ttc"))
+    font = BRANDING / "HelveticaNeue.ttc"
+    if font.exists():  # Apple's font, not redistributable: copies made for others leave it out (DejaVu Sans then)
+        font_manager.fontManager.addfont(str(font))
     plt.rcParams.update(
         {
             "font.size": 11,

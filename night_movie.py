@@ -843,11 +843,13 @@ def write_raw_frame(folder, image, win, row, args, cards=None):
     from mesa_argus import camera, sensor
 
     path, start, end = raw_frame_path(folder, row, args)
+    layout = Layout.from_config()
     ra, dec = sensor.sky_at(win[0] + (win[2] - 1) / 2, win[1] + (win[3] - 1) / 2, row["time"], row["theta_deg"],
-                            int(row["ota"]), Layout.from_config())
+                            int(row["ota"]), layout)
     folder.mkdir(parents=True, exist_ok=True)
     camera.write_raw(path, image, dict(utc_start=start.isot, utc_end=end.isot, exptime=args.exptime,
                                        ratchet=f"{start.datetime:%Y%m%d}_{int(row['ratchet'])}", tel_id=int(row["tel_id"]),
+                                       subarray=int(layout.subarray[int(row["ota"])]),
                                        target_ra=float(ra), target_dec=float(dec), band=row["band"], x_origin=win[0],
                                        y_origin=win[1], cards=cards or {}))
     return path

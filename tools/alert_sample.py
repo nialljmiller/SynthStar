@@ -151,7 +151,7 @@ def resolve_cut(cut, bundle):
         return float(points[cut])
 
 
-def one_band(folder, band, out, min_sigma, cut=None, validate=False):
+def one_band(folder, band, out, min_sigma, cut=None, validate=False, write=True):
     """Copy a night's packets for one band (with a cut: those at or above it) and write their truth; returns the
     manifest entry (None: no packets)."""
     from fastavro import writer
@@ -172,14 +172,16 @@ def one_band(folder, band, out, min_sigma, cut=None, validate=False):
     by_id = table[table["alertId"] != ""].drop_duplicates("alertId").set_index("alertId")
     sources = sources_by_label(folder)
     dest = out / name / band / "packets"
-    dest.mkdir(parents=True, exist_ok=True)
+    if write:  # (write=False: the manifest entry only; packets and truth.parquet as they are)
+        dest.mkdir(parents=True, exist_ok=True)
     rows, versions, n_read = [], set(), 0
     cutouts = {"science": 0, "difference": 0, "template": 0}
     for path in files:
         packets = alert_files.read(path)
         n_read += len(packets)
         if cut is None:
-            shutil.copy2(path, dest / path.name)
+            if write:
+                shutil.copy2(path, dest / path.name)
         else:
             packets = [k for k in packets if (k["candidate"]["realBogusScore"] or 0.0) >= cut]
             if not packets:
@@ -188,8 +190,9 @@ def one_band(folder, band, out, min_sigma, cut=None, validate=False):
                 from fastavro import reader
 
                 schema = reader(f).writer_schema
-            with open(dest / path.name, "wb") as f:
-                writer(f, schema, packets, codec="deflate")
+            if write:
+                with open(dest / path.name, "wb") as f:
+                    writer(f, schema, packets, codec="deflate")
         for packet in packets:
             versions.add(packet["schemaVersion"])
             if validate:  # hdps's own packet model (the cutouts' 4096-byte rule included); raises on a bad packet
@@ -216,7 +219,8 @@ def one_band(folder, band, out, min_sigma, cut=None, validate=False):
             rows.append(row)
     truth = pd.DataFrame(rows)
     missing = int(truth["truth_class"].isna().sum()) if "truth_class" in truth else len(truth)
-    truth.to_parquet(out / name / band / "truth.parquet", index=False)
+    if write:
+        truth.to_parquet(out / name / band / "truth.parquet", index=False)
     settings = night_settings(folder, band)
     mid = table["time_utc"].iloc[len(table) // 2] if len(table) else None
     models = sorted({str(m) for m in table.get("model_version", pd.Series(dtype=str)).dropna().unique()})
@@ -258,6 +262,18 @@ no rotation, CDELT1 negative: +y north, -x east at the segment's tangent point).
 - The filling is our implementation of ADR-0030 sec. 4 in hdps's AlertVettingTask (a local commit on top of hdps PR
   #474, which defers cutout extraction): hdps's own code, the planes hdps already cuts its alert stamps from, until
   hdps's producer PR lands.
+"""
+
+LIMITATIONS = """\
+## Simulation limitations
+
+- Bright stars' PSFs stop at ArgusSim's Zemax stamp, 28 x 28 sensor pixels: around the brightest stars the wings end in
+  a visible square, at about 50 e- per pixel, which can show in the cutouts of alerts near bright stars. A fitted outer
+  wing is planned.
+- Saturated cores are flat at the full well, 21,657 e- in the 60 s exposures (ArgusSim's camera model).
+- ArgusSim applies no lens distortion: the true WCS of every exposure is a plain TAN projection. hdps fits its TPV
+  distortion (TPVWCSSolverTask, 17 terms by default) from an identity guess, because the simulated cameras have no
+  calibration file; that fit is what fails on the exposures without tiles (above).
 """
 
 KNOWN_GAPS = """\
@@ -358,7 +374,7 @@ def write_readme(out, manifest):
               "candidate's PSF flux error), 0 bogus (a constant star or nothing), -1 an injected source changing less "
               "than that.",
               "- `manifest.json`: everything in the table above, per night and band (also cutout counts).", "",
-              CUTOUTS, KNOWN_GAPS]
+              CUTOUTS, LIMITATIONS, KNOWN_GAPS]
     (out / "README.md").write_text("\n".join(lines))
 
 
@@ -371,6 +387,8 @@ def main(argv=None):
     p.add_argument("--cut", help="keep packets with realBogusScore >= this: a number, or an operating point of --bundle")
     p.add_argument("--bundle", type=Path, help="the real/bogus bundle the nights were scored with (for a --cut label)")
     p.add_argument("--name", help="the sample's name, for the README")
+    p.add_argument("--readme-only", action="store_true", help="write manifest.json and README.md again, from the same "
+                                                               "inputs, leaving packets and truth.parquet as they are")
     p.add_argument("--validate", action="store_true", help="check every packet with hdps.alerts.models (the schema's "
                                                             "hdps on PYTHONPATH)")
     args = p.parse_args(argv)
@@ -384,7 +402,8 @@ def main(argv=None):
             obs = tomllib.loads((folder / "observation.toml").read_text())
             if band not in obs.get("output", {}).get("bands", ["beta", "rho"]):
                 continue  # (the other half of a one-band run)
-            entry = one_band(folder.resolve(), band, args.out, args.min_sigma, cut, args.validate)
+            entry = one_band(folder.resolve(), band, args.out, args.min_sigma, cut, args.validate,
+                             write=not args.readme_only)
             if entry is None:
                 print(f"{folder.name} {band}: no packets or no alerts.csv; skipped")
                 continue

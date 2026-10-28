@@ -336,10 +336,11 @@ def main():
     observe(obs, runconfig.output_folder(obs["field"]["name"], obs["stars"]["layout"]), scene_only)
 
 
-def make_reference(obs, out, placements):
+def make_reference(obs, out, placements, science=None):
     """hdps's references, by its coadd bootstrap (docker/demo/config.yaml): the [night] reference_nights before the
     first night are observed (the same field and stars, the transients left out), and each band's frames go through
-    hdps up to CoaddTapTask, whose coadds are the references. Returns the folder holding <band>/coadds."""
+    hdps up to CoaddTapTask, whose coadds are the references. science: the science night's exposures, for [night]
+    reference_geometry_px. Returns the folder holding <band>/coadds."""
     import copy
     from datetime import date as Date, timedelta
 
@@ -352,15 +353,97 @@ def make_reference(obs, out, placements):
     # a strided one stacks 1-3 frames, leaving residuals unlike any the real/bogus model was trained on
     reference["output"].update(movie=False, pipeline_movie=False, catalogues=False, lightcurves=False, stride=1)
     ref_out = out / "reference"
-    print(f"reference: {n} night(s) from {reference['night']['date']} through hdps's coadd -> {ref_out.relative_to(REPO)}/",
+    best = obs["night"]["reference_ratchets"]
+    near = obs["night"]["reference_geometry_px"]
+    if obs["night"]["reference_oracle"]:  # TEST ONLY: tonight's own exposures, another noise draw
+        reference["night"].update(date=obs["night"]["date"], nights=1)
+        reference["output"]["noise_seed"] = obs["output"]["noise_seed"] + 1
+        best, near, science = 0, 0, None
+        from argus_sim import c as cfg
+
+        shift = obs["night"]["reference_oracle_shift_px"] * cfg.telescope.plate_scale / 3600 / np.cos(np.radians(obs["field"]["dec"]))
+        tweak = (obs["night"]["reference_oracle_seeing"], shift)  # seeing factor, tracking angle offset (deg)
+        print("reference: TEST ONLY (reference_oracle): the science night's own exposures, noise seed "
+              f"{reference['output']['noise_seed']}, transients left out; seeing x {tweak[0]}, tracking angle "
+              f"{tweak[1] * 3600:+.3f}\" ({obs['night']['reference_oracle_shift_px']} px)", flush=True)
+    print(f"reference: {n} night(s) from {reference['night']['date']} through hdps's coadd"
+          + (f", each telescope's ratchets within {near} px of tonight's sensor position" if near else "")
+          + (f", each telescope's {best} best-seeing ratchet(s)" if best else "") + f" -> {ref_out.relative_to(REPO)}/",
           flush=True)
-    observe(reference, ref_out, engine_options=["--hdps-pass", "reference"])
+    before = min(science["time"]) if science is not None and len(science) else None
+    observe(reference, ref_out, engine_options=["--hdps-pass", "reference"], best_ratchets=best,
+            match=(science, near) if near else None, before=before,
+            tweak=tweak if obs["night"]["reference_oracle"] else None)
     return ref_out / "hdps"
 
 
-def observe(obs, out, scene_only=False, engine_options=None):
+def ratchet_views(coverage, ra, dec):
+    """Each (telescope, band, ratchet) of the exposures at its first exposure: the field centre's sensor x, y (px) and
+    its seeing there (the ratchet's zenith seeing x airmass^0.6, ArgusSim's seeing_at_airmass)."""
+    from argus_sim import c as cfg
+    from argus_sim.coverage_exact import Layout
+    from argus_sim.observatory import seeing_at_airmass
+    from astropy.time import Time
+
+    from mesa_argus import night
+    from mesa_argus.sensor import Projector
+
+    times = Time(list(coverage["time"]), scale="utc")
+    airmass, _, _ = night.sky_position(times, ra, dec, night.location(cfg))
+    seeing = seeing_at_airmass(np.asarray(coverage["seeing_zenith"], float), airmass)
+    projector = Projector(np.array([ra]), np.array([dec]), times, Layout.from_config())
+    views = {}
+    for j in range(len(coverage)):
+        key = (int(coverage["tel_id"][j]), str(coverage["band"][j]), int(coverage["ratchet"][j]))
+        if key not in views:
+            x, y, _ = projector.pixels(j, coverage["theta_deg"][j], coverage["ota"][j])
+            views[key] = (float(np.ravel(x)[0]), float(np.ravel(y)[0]), float(seeing[j]))
+    return views, seeing
+
+
+def best_seeing_ratchets(coverage, ra, dec, best, match=None):
+    """The exposures of each telescope's `best` ratchets with the best seeing at the field (per band; 0: all), from
+    ratchet_views. match: (the science night's exposures, px): only the telescopes observing the field tonight, each
+    from its ratchets within px of where tonight's ratchet put the field centre on its sensor, preferring those at
+    least as sharp as tonight's (none within px: the nearest, with a warning)."""
+    views, seeing = ratchet_views(coverage, ra, dec)
+    tonight = ratchet_views(match[0], ra, dec)[0] if match else {}
+    chosen = set()
+    far = []
+    for tel, band in sorted({k[:2] for k in views}):
+        mine = {k: v for k, v in views.items() if k[:2] == (tel, band)}
+        if match:
+            here = [v for k, v in tonight.items() if k[:2] == (tel, band)]
+            if not here:
+                continue  # not observing the field tonight in this band: no reference needed
+            x, y, sharp = here[0]  # tonight's first ratchet of this telescope
+            dist = {k: np.hypot(v[0] - x, v[1] - y) for k, v in mine.items()}
+            near = [k for k in mine if dist[k] <= match[1]]
+            if not near:
+                near = [min(mine, key=dist.get)]
+                far.append(f"{tel} {band} {dist[near[0]]:.0f} px")
+            sharper = [k for k in near if mine[k][2] <= sharp]
+            mine = {k: mine[k] for k in (sharper or near)}
+        chosen.update(sorted(mine, key=lambda k: mine[k][2])[:best] if best else mine)
+    keep = np.array([(int(t), str(b), int(r)) in chosen for t, b, r in
+                     zip(coverage["tel_id"], coverage["band"], coverage["ratchet"])])
+    print(f"reference: " + (f"each telescope's ratchets within {match[1]} px of tonight's view, " if match else "")
+          + (f"its {best} best-seeing ratchet(s) per band" if best else "all of them") + f": {keep.sum()} of "
+          f"{len(coverage)} exposures, seeing {seeing[keep].min():.2f}-{seeing[keep].max():.2f}\" (all: "
+          f"{seeing.min():.2f}-{seeing.max():.2f}\")", flush=True)
+    if far:
+        print(f"reference: WARNING no ratchet within {match[1]} px of tonight's view for {', '.join(far)}: the nearest",
+              flush=True)
+    return coverage[keep]
+
+
+def observe(obs, out, scene_only=False, engine_options=None, best_ratchets=0, match=None, before=None, tweak=None):
     """Write the observation's scene into `out`, then run the engine on it (engine_options: extra engine arguments;
-    None for a full observation, which makes the reference first if alerts are asked for)."""
+    None for a full observation, which makes the reference first if alerts are asked for; best_ratchets: observe only
+    each telescope's best-seeing ratchets, best_seeing_ratchets, 0 for all; match: (science exposures, px) for
+    best_seeing_ratchets; before: a reference's exposures end before this UTC time, the science night's first: a
+    reference window that choose_night moved later, to a night the field is up, must not reach the science night;
+    tweak: TEST ONLY (seeing factor, tracking-angle offset in deg) applied to the exposures, reference_oracle_*)."""
     from argus_sim import skymap_shim
     from astropy.time import Time
 
@@ -399,6 +482,17 @@ def observe(obs, out, scene_only=False, engine_options=None):
     coverage = survey.exposures(ra, dec, n["date"], n["nights"], n["seed"])
     if len(coverage) == 0:
         raise SystemExit(f"the array does not cover RA {ra}, Dec {dec} on the night of {n['date']}")
+    if tweak is not None:  # TEST ONLY: [night] reference_oracle_seeing, reference_oracle_shift_px
+        coverage["seeing_zenith"] = np.asarray(coverage["seeing_zenith"], float) * tweak[0]
+        coverage["theta_deg"] = np.asarray(coverage["theta_deg"], float) + tweak[1]
+    if before is not None:
+        late = Time(list(coverage["time"]), scale="utc") >= Time(before, scale="utc")
+        if late.any():
+            print(f"reference: {int(late.sum())} exposures at or after the science night's first ({before}) left out",
+                  flush=True)
+            coverage = coverage[~late]
+    if best_ratchets or match:
+        coverage = best_seeing_ratchets(coverage, ra, dec, best_ratchets, match)
     exposures = Time(list(unique(coverage, keys="time")["time"]), scale="utc").jd
     start = Time(exposures[0], format="jd", scale="utc")
     night_start_bjd = float(night.bjd_tdb(start, ra, dec, site))
@@ -457,7 +551,7 @@ def observe(obs, out, scene_only=False, engine_options=None):
     if engine_options is None:
         engine_options = []
         if obs["output"]["alerts"]:
-            reference = make_reference(obs, out, placements)
+            reference = make_reference(obs, out, placements, coverage)
     shutil.rmtree(out / "hdps", ignore_errors=True)
     run_engine(obs, out, len(rows), engine_options, reference)
     print(f"done: {out.relative_to(REPO)}/")

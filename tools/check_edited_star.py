@@ -90,7 +90,7 @@ def check(pack_name, band):
             e = float(np.interp(days, light["x"], [np.interp(X, T.AIRMASS, r) for r in light["electrons"][band]])) * exptime
             true = float(np.interp(days, light["x"], np.nan_to_num(light["mag"][band], nan=99.0)))
             comp = compose.frame(c, band, float(p["seeing"][j]), float(p["survey"]["field_angle"][j]), X, e, 0.0, ex, ey,
-                                 seed=n, sky=night.sky[n], q=night.q[n])
+                                 seed=n, sky=night.sky[n], q=night.q[n], wing=compose.wing_key(p.get("image")))
             m, _, _, _ = measure.photometry(comp, ex, ey, p["zp"][n])
             features = measure.candidate(comp, ex, ey, night.hdps_fwhm[n], night.hdps_plane[n], mask=night.mask)
             rows.append((True, hdps_d, m - true, hdps_alert, features))

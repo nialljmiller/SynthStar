@@ -41,7 +41,7 @@ def _check(where, params, values, resolved, errors):
 
 def _tasks(given, errors):
     """[[hdps.tasks]]: the file's chain (or hdps's production chain), each Task's settings over its defaults."""
-    defaults = {t["type"]: t["config"] for t in S.TASKS}
+    defaults = {t["type"]: t["config"] for t in S.TASKS + S.TOY_TASKS}
     chain = given if given is not None else copy.deepcopy(S.TASKS)
     out = []
     for i, t in enumerate(chain):
@@ -91,8 +91,8 @@ def plate_scale(o):
 def resolve(observation):
     """The observation with every default filled and every value checked (SystemExit naming every problem)."""
     errors = []
-    sections = set(observation) - {"field", "night", "stars", "inject", "argussim", "camera", "hdps", "lightcurves",
-                                   "truth", "output", "place"}
+    sections = set(observation) - {"field", "night", "stars", "inject", "argussim", "camera", "image", "hdps",
+                                   "lightcurves", "truth", "output", "place"}
     if sections:
         errors.append(f"unknown sections {sorted(sections)}")
     out = {name: _fill(f"[{name}]", observation.get(name, {}), params, errors) for name, params in S.SECTIONS.items()}
@@ -210,12 +210,18 @@ def dumps(observation, header):
     """The resolved observation as TOML (every parameter)."""
     from mesa_argus.tomlfile import table
 
+    from mesa_argus.schema import SECTIONS
+
+    written = ("field", "night", "stars", "inject", "camera", "image", "lightcurves", "truth", "output")
+    if set(SECTIONS) - set(written):  # a section left out is not made again ([image] until 2026-10-26, [inject] until
+        raise ValueError(f"runconfig.dumps does not write {sorted(set(SECTIONS) - set(written))}")  # 2026-10-27)
     lines = [f"# {header}", ""]
-    for name in ("field", "night", "stars"):
+    for name in ("field", "night", "stars", "inject"):
         lines += table(f"[{name}]", observation[name])
     for sub, values in observation["argussim"].items():
         lines += table(f"[argussim.{sub}]", values)
     lines += table("[camera]", observation["camera"])
+    lines += table("[image]", observation["image"])
     lines += table("[hdps]", {k: v for k, v in observation["hdps"].items() if k not in ("coadd", "tasks")})
     lines += table("[hdps.coadd]", observation["hdps"]["coadd"])
     for task in observation["hdps"]["tasks"]:

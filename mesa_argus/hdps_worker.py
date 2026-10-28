@@ -11,7 +11,9 @@ Toys, each standing in for a piece hdps runs against that does not exist here:
 - valkey: an in-process fakeredis server (hdps's own tests use fakeredis) behind the worker's cache, DLQ and metrics;
 - real/bogus: with no model_bundle, AllReal (every candidate scored 1); with one (tools/train_rb.py), hdps's own
   RFBundleClassifier loads it;
-- Kafka: mesa_argus.alert_files.AvroFileProducer, hdps's packets written as Avro files.
+- Kafka: mesa_argus.alert_files.AvroFileProducer, hdps's packets written as Avro files;
+- the astrometric and photometric solve, when the chain has TrueCalibrationTask in its place: the simulation's WCS
+  and zero point (mesa_argus.true_calibration).
 """
 from pathlib import Path
 
@@ -79,6 +81,10 @@ def run(obs, raw_dir, out_dir, reference_dir=None, stop_after=None, worker_id="m
     from mesa_argus.alert_files import AvroFileProducer
 
     _fake_valkey()
+    if any(t["type"] == "TrueCalibrationTask" for t in obs["hdps"]["tasks"]):
+        from mesa_argus import true_calibration
+
+        true_calibration.register()
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     co = obs["hdps"]["coadd"]

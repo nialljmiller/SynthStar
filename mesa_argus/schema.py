@@ -130,9 +130,39 @@ NIGHT = [
       "year."),
     P("seed", 0, "", (0, 2**31 - 1), "Seed of ArgusSim's per-ratchet draws (seasonal zenith seeing); the same seed "
       "makes the same nights."),
-    P("reference_nights", 1, "nights", (1, 30), "Nights observed before the first night to make hdps's references "
+    P("reference_nights", 1, "nights", (1, 200), "Nights observed before the first night to make hdps's references "
       "(its coadd bootstrap: pass 1 coadds these nights' frames with CoaddTapTask, pass 2 subtracts against those "
-      "coadds; docker/demo/config.yaml header). Same stars, transients left out. 1: the night before."),
+      "coadds; docker/demo/config.yaml header). Same stars, transients left out. 1: the night before. Up to 200 for "
+      "reference_geometry_px: a telescope's view of a field repeats only every few weeks (f294 2026-09-10: every "
+      "telescope within 122 px of tonight's sensor position on 07-31, within ~257 px on 08-23)."),
+    P("reference_ratchets", 0, "ratchets", (0, 100), "The reference nights' ratchets each telescope keeps for its "
+      "references: its N with the best seeing at the field (the ratchet's zenith seeing x airmass^0.6, ArgusSim's), per "
+      "band; the other exposures are not observed. SFFT matches the reference to the frame by convolving it, so a frame "
+      "sharper than its reference cannot be matched and its stars stay in the difference (M67 beta 2026-10-27: a "
+      "frame's bright-star residual against a 1-night reference of all ratchets went from +17% of the star at 0.85\" to "
+      "-10% at 2.1\", correlation -0.96 with the frame's seeing; ~680 hdps candidates per frame). Seeing is drawn per "
+      "ratchet, so a cut within one night drops whole cameras (they then take another camera's coadd): use with "
+      "reference_nights > 1, as Argus's references will be. 0: every ratchet (as before 2026-10-27)."),
+    P("reference_geometry_px", 0, "px", (0, 5000), "Each telescope's reference from its own ratchets that saw the field "
+      "where tonight's does on its sensor: within this many pixels of the field centre's sensor position in that "
+      "telescope's ratchet tonight (the reference_ratchets best-seeing of them, those at least as sharp as tonight's "
+      "first; all of them with reference_ratchets = 0); telescopes not observing the field tonight are not observed. "
+      "A telescope's view changes from night to night (f294: 0.3-1.9 deg off-axis), and with it the PSF's width and "
+      "shape (ArgusSim's optics: 2.6 px near the axis to 3.2 px at 1.9 deg, tile pixels); a reference from another "
+      "position left each star's core +5 to +12% (frames sharper than it) or -4 to -10% (broader) of its peak in the "
+      "difference (f294 beta 2026-09-10, iter3z), red or blue by telescope. 300 px is ~0.08 deg. None within it: the "
+      "telescope's nearest ratchet, with a warning. 0: off (reference_ratchets alone)."),
+    P("reference_oracle", False, "", {True, False}, "TEST ONLY: the reference from the science night's own exposures "
+      "(another noise draw: output.noise_seed + 1), the transients left out, instead of reference_nights before it. The "
+      "best any reference could be: what it leaves at constant stars is the subtraction's own floor (hdps's kernel fit, "
+      "the reprojection of an undersampled PSF), which no choice of reference removes. Never for data."),
+    P("reference_oracle_seeing", 1.0, "", (0.5, 2.0), "TEST ONLY, with reference_oracle: the reference's seeing x this "
+      "(its ratchets' zenith seeing scaled): whether a reference sharper (< 1) or broader than the frames, all else "
+      "the same, leaves the stars' cores in the difference."),
+    P("reference_oracle_shift_px", 0.0, "px", (0.0, 2.0), "TEST ONLY, with reference_oracle: the reference's tracking "
+      "angle moved so the stars land this many sensor pixels along the sky's east-west from tonight's: whether the "
+      "stars' sub-pixel positions (an undersampled PSF, ~2.6 tile pixels FWHM) alone, all else the same, leave their "
+      "cores in the difference."),
 ]
 
 
@@ -153,6 +183,10 @@ STARS = [
       "over the window (a synthetic field)."),
     P("seed", 1, "", (0, 2**31 - 1), "Seed of the random layout and random placements."),
     P("missing", "stop", "", {"stop", "skip"}, "A placed star not built yet: stop the run, or skip it."),
+    P("photometry_workers", 1, "", (1, 64), "Processes for ArgusSim's photometry of the constant stars (each MESA "
+      "template through both bands at its stars' E(B-V) and every tabulated airmass), forked from the engine (Linux; "
+      "macOS forks unsafely with Accelerate: keep 1 there). The results do not depend on it. 1: in the engine's own "
+      "process; f065's 35k stars took 67 min of each pass (reference and night) on newton that way."),
 ]
 
 PLACE = [
@@ -178,6 +212,102 @@ CAMERA = [
     P("offset", 0, "ADU", (0, 65535), "Toy: bias level (none in ArgusSim)."),
     P("saturation_adu", 58000.0, "ADU", (1.0, 65535.0), "hdps.calibration.ImageReducer's saturation_value: raw "
       "pixels at or above it are flagged saturated."),
+]
+
+def _radii(v, lo, hi):
+    """A pair [inner, outer] of radii (px) with lo <= inner < outer <= hi."""
+    ok = (isinstance(v, list) and len(v) == 2 and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in v)
+          and lo <= v[0] < v[1] <= hi)
+    return None if ok else f"[inner, outer] with {lo} <= inner < outer <= {hi}"
+
+
+def _join_check(v, r):
+    err = _radii(v, 2, 13)
+    if err:
+        return err
+    fit = (r or {}).get("image", {}).get("psf_wing_fit", [6, 11])
+    return None if v[0] >= fit[0] else f"the blend starts at or beyond the fitted radii (psf_wing_fit {fit})"
+
+
+def _box_check(v, r):
+    if not (isinstance(v, int) and not isinstance(v, bool) and 28 <= v <= 301):
+        return "an integer, 28 <= psf_box <= 301"
+    return None if v == 28 or not (r or {}).get("image", {}).get("psf_wing") else "psf_box above 28 with psf_wing"
+
+
+def _halo_check(v, r):
+    if v not in (True, False):
+        return "true or false"
+    return None if not v or (r or {}).get("image", {}).get("psf_box", 28) > 28 else "psf_halo needs psf_box above 28"
+
+
+def _halo_params(v, r):
+    ok = (isinstance(v, (list, tuple)) and len(v) == 3 and all(isinstance(x, (int, float)) for x in v)
+          and 0 <= v[0] < 1e-2 and 1 <= v[1] <= 200 and 1 < v[2] <= 20)
+    return None if ok else "[A, r0, beta], 0 <= A < 1e-2, 1 <= r0 <= 200, 1 < beta <= 20"
+
+
+IMAGE = [  # this repository's renderer (mesa_argus/sensor.py: ArgusSim has no image renderer)
+    P("psf_wing", False, "", {True, False}, "false: ArgusSim's PSF stamp as it is; it ends at ArgusSim's Zemax grid "
+      "(28 x 28 px), so a bright star sits in a visible square (its light stops at ~2e-5 of the star per pixel). "
+      "true: the stamp continued by a power law fitted to its own outer profile (mesa_argus/sensor.py PSFs), drawn "
+      "out to where it falls below psf_wing_floor. Default false: runs as before 2026-10-26 (the v1 alert sample)."),
+    P("psf_wing_fit", [6, 11], "px", lambda v, r: _radii(v, 2, 12), "Radii (from the stamp's centroid) whose mean "
+      "profile is fitted with A r^-alpha: beyond the seeing core (3 FWHM at 2\" seeing), inside the stamp (its edge "
+      "is 13.5-14 px from the centroid; 12 keeps the last annulus whole). Over 6-11 px the slope is -2.7 to -3.6 "
+      "(1-2\" seeing, both bands, every field angle), near diffraction's -3.",
+      allowed_text="[inner, outer], 2 <= inner < outer <= 12"),
+    P("psf_wing_join", [10, 13], "px", _join_check, "The star is drawn as the stamp inside the inner radius, the "
+      "fitted law beyond the outer, a linear blend between (no seam where the stamp ends). The outer radius at most "
+      "13: the stamp reaches 13.5 px from its centroid in every direction; the inner at or beyond the fit's inner "
+      "radius, where the law describes the stamp.", allowed_text="[inner, outer], 2 <= inner < outer <= 13, inner >= "
+      "psf_wing_fit's inner"),
+    P("psf_wing_radius", 400, "px", (14, 2000), "The PSF is normalised to unit flux within this radius and drawn at "
+      "most this far out. At 400 px the r^-3 wing of a beta ~3 star (a Pleiad, ~1e10 e- in 60 s) is ~1e1 e- per "
+      "pixel, below the sky's photon noise (~30 e-); the light beyond (2 pi A / R for r^-3) is ~0.1% of a star's. "
+      "Larger costs time only for the brightest stars. At least 14: beyond the stamp."),
+    P("psf_wing_floor", 0.5, "e-/px", POSITIVE, "A star's wing is drawn out to where it falls to this: well below "
+      "the sky's photon noise per pixel (> 15 e- in 60 s even at new Moon) and the read noise, so leaving out the "
+      "rest changes nothing measurable while faint stars cost nothing extra. Positive."),
+    P("psf_box", 28, "px", _box_check, "The PSF stamp's side. 28: ArgusSim's stamp (survey.stamp_size) as it is, "
+      "cut from its Zemax array of 29 px after the seeing, so a bright star's light stops at a square edge 14 px out "
+      "(~2e-5 of the star per pixel there: ~200 e- for a 1e7 e- star). Larger: ArgusSim's same PSF (Zemax optics, "
+      "delivered-EE50 blur, Moffat seeing) made with the Zemax array padded first, so the seeing blurs that edge "
+      "instead of cutting it, and room for psf_halo. The optics data itself still ends 14.5 px out (the light falls "
+      "~1000x between 15 and 18 px): without psf_halo the square only softens. 121 holds the halo to 60 px (~70 tile "
+      "px), where it is ~1e-9 of the star per pixel. Default 28: runs as before 2026-10-26. Not with psf_wing (that "
+      "continues the 28 px stamp).", allowed_text="an integer, 28 <= psf_box <= 301; above 28 only with psf_wing = "
+      "false"),
+    P("psf_box_floor", 0.5, "e-/px", POSITIVE, "With psf_box above 28, each star is drawn in the square outside which "
+      "its PSF is below this: as psf_wing_floor, below the sky's photon noise and the read noise, so faint stars keep "
+      "a 29 px square and cost nothing extra (the light they leave out is below the floor in every pixel and outside "
+      "hdps's aperture). Positive."),
+    P("psf_halo", False, "", _halo_check, "true: the delivered PSF's static halo, as measured on sky, added to "
+      "ArgusSim's PSF after the seeing (needs psf_box above 28). Measured by H. Corbett (synthref halo_measure.py, "
+      "2026-09: hdps tile 363381, a 15 x 60 s stack, unsaturated non-variable Gaia XP stars of G 8.5-12.5, every other "
+      "star removed, fitted over 8-60 tile px): beyond ~10 tile px the real PSF lies well above the Zemax model "
+      "(~3e-5 of the star per pixel at 15 tile px, ~1e-5 at 20, ~2e-6 at 30), and the halo holds 3.6% (beta) / 4.0% "
+      "(rho) of the core's light within 60 tile px. This continues the PSF past the Zemax grid, so the square goes. "
+      "Default false: runs as before 2026-10-26.", allowed_text="true or false; true only with psf_box above 28"),
+    P("psf_halo_beta", [4.9e-5, 34.1, 6.0], "[per tile px, tile px, ]", _halo_params, "The beta halo's A, r0, beta "
+      "in A [1 + (r/r0)^2]^-beta, per hdps tile pixel (0.879\") as a share of the star's core light, r from the star "
+      "in tile pixels: Corbett's fit (synthref figs/halo_profile.png, beta, 21 stars).",
+      allowed_text="[A, r0, beta], 0 <= A < 1e-2, 1 <= r0 <= 200, 1 < beta <= 20"),
+    P("psf_halo_rho", [8.0e-5, 28.3, 6.0], "[per tile px, tile px, ]", _halo_params, "As psf_halo_beta, for rho: "
+      "Corbett's fit (synthref figs/halo_profile.png, rho, 11 stars).",
+      allowed_text="[A, r0, beta], 0 <= A < 1e-2, 1 <= r0 <= 200, 1 < beta <= 20"),
+    P("psf_halo_taper", [10, 14], "px", lambda v, r: _radii(v, 2, 14), "With psf_halo, ArgusSim's Zemax optics are "
+      "tapered (cos^2) from 1 at the inner radius to 0 at the outer, a circle inside their 29 px square, before the "
+      "seeing; the halo carries the light beyond. Without it the square's corners (14.5-20.5 px out) keep optics light "
+      "the sides lack, and a bright star shows a square inside its halo. Corbett's model that matched the measured "
+      "PSF is the same: a +-12 px optical stamp plus the halo. The taper removes ~0.1% of the light (renormalised).",
+      allowed_text="[inner, outer], 2 <= inner < outer <= 14"),
+    P("psf_seeing_step", 0.0, "arcsec", (0.0, 0.1), "Each exposure's PSF is made for its seeing rounded to this, so "
+      "exposures within a step share one set of stamps. ArgusSim's seeing (a ratchet's zenith seeing x airmass^0.6) "
+      "differs in every exposure, and with psf_box above 28 a new seeing costs ~0.3 s per tabulated field angle (11 "
+      "across a 56-minipix window): 3.7 s of a 50,000-star frame's 4 s on the Mac. 0.02 changes a ~1\" FWHM by at "
+      "most 1%. 0: the exact seeing (runs as before 2026-10-27). At most 0.1 (5% at 1\").",
+      allowed_text="0.0 .. 0.1"),
 ]
 
 LIGHTCURVES = [
@@ -230,6 +360,39 @@ OUTPUT = [
     P("movie_data", True, "", {True, False}, "Save what both movies need (<name>_night_<band>.movie.joblib: each "
       "frame's block cut-outs, a 4 x 4-binned raw-frame preview, detections, WCS, measurements, alerts; ~1 MB per "
       "frame), so they can be drawn after the run (tools/render_movies.py) with movie = false during it."),
+    P("movie_window_px", 800, "pixels", lambda v, r: None if isinstance(v, int) and not isinstance(v, bool) and
+      (v == 0 or 100 <= v <= 4000) else "0, or an integer 100-4000", "Field movie: its Exposure and Difference panels "
+      "show the whole readout window, hdps's images of every tile it touches (TileImageOutputTask tile_ids: all, when "
+      "the movie or its data is made) on the block's tile grid, each pixel the mean of a power-of-two square of tile "
+      "pixels, the smallest that brings the frames' windows (their union) to at most this many pixels across. 800: "
+      "f294's 56-minipix windows (placed on 8 telescopes' sensors) span ~3100 tile pixels -> 4 x 4, 730 x 785 pixels, "
+      "~2 MB per frame more in the movie data; the panel is ~300 screen pixels at dpi 100 (drawn antialiased). Disk "
+      "while the run lasts: 2 x 16 MB per tile per frame (f294: 4 tiles, 128 MB per frame against 32 MB for the "
+      "block's tile alone; deleted at the end unless raw). 0: the block alone, from the tile it is in.",
+      allowed_text="0, or 100-4000"),
+    P("movie_window_zoom", 1.0, "", (1.0, 10.0), "Field movie, with movie_window_px: its panels show the central "
+      "1/zoom of the whole-window view, about the block, and the images cover only that, binned as movie_window_px "
+      "says (so finer: f294 at 3, ~956\" across, 2 x 2 tile pixels, ~545 pixels; at 1, 4 x 4); hdps writes only the "
+      "tiles that view reaches. 1: the whole window (all of every frame's window, the view centred on them). Up to 10: "
+      "f294's view is then ~290\", about the 9 x 9 block itself (closer: movie_window_px = 0, the block's own view)."),
+    P("movie_views", ["window", "block"], "", lambda v, r: None if isinstance(v, list) and v and set(v) <= {"window", "block"}
+      else "a non-empty list of \"window\", \"block\"", "Field movies drawn from one run (each from its movie data, so "
+      "tools/render_movies.py draws them all again): window, the whole readout window or its zoom about the block "
+      "(movie_window_px, movie_window_zoom; <name>_night_<band>.mp4); block, the 9 x 9 block's own tile at hdps's "
+      "pixels (<name>_night_<band>_block.mp4; the window view instead when movie_window_px = 0). The pipeline movie is "
+      "pipeline_movie.", allowed_text="list of \"window\", \"block\""),
+    P("movie_mask_reference_e", 8000.0, "electrons", (0.0, None), "Field movies' Difference panel: pixels about the "
+      "stars brighter than this in the frame's own reference coadd (electrons per tile pixel above its background; the "
+      "coadd hdps subtracted, by its rule: the frame's camera, the deepest) are drawn grey. Saturated and bright stars "
+      "keep a few % of their light in hdps's difference whatever the reference (f294 beta iter5, a reference of the "
+      "night's own frames: the ~130 brightest constant stars +4% net, the rest 0.1-0.3%), and draw the eye; the "
+      "transients are not in the reference and stay. Display only: hdps, its alerts and the movie data are unchanged. "
+      "8000: about a third of the 60 s full well (21657 e-). 0: off."),
+    P("movie_mask_radius_px", 4, "pixels", (0, 50), "The grey disc about each masked pixel (tile pixels, 0.879\") at "
+      "movie_mask_reference_e; ~1.5 x the PSF's FWHM (2.6-3.2 tile pixels)."),
+    P("movie_mask_growth_px", 2, "pixels", (0, 20), "The disc's growth per magnitude a pixel is brighter than "
+      "movie_mask_reference_e in the reference (a star's residual reaches further the brighter it is; hdps's "
+      "bright-star mask grows the same way, SFFTSubtractionTask mask_dilation_growth)."),
     P("stride", 1, "", (1, 1000), "Movie: every Nth frame."),
     P("fps", 24, "frames/s", (1, 120), "Movie frame rate."),
     P("dpi", 100, "", (50, 300), "Movie resolution."),
@@ -370,6 +533,14 @@ TASKS = [
                                       compress=False, tile_ids=NONE, filename_prefix="epoch")),
 ]
 
+# Toy Tasks a chain may use in place of hdps's own, never in the default chain (each documented in its module):
+# TrueCalibrationTask, the simulation's WCS and zero point in place of ReferenceRetrievalTask, LinearWCSSolverTask,
+# SourceMatchingTask and TPVWCSSolverTask (mesa_argus/true_calibration.py; user 2026-10-26: the solve is not needed
+# and often fails, ~36% of exposures without a tile in the v1 alert sample). It takes no settings.
+TOY_TASKS = [
+    _task("TrueCalibrationTask", dict()),
+]
+
 # Allowed values and why, per (Task, setting). hdps itself validates only the enumerated modes (variance_conv, fmt,
 # background_mode, ...: "hdps checks"); every other range is what the setting means, open where nothing limits it.
 # Source of each value: the production config line (_H), else "hdps default" (the Task's constructor).
@@ -504,7 +675,8 @@ TASK_RULES = {
     ("TileImageOutputTask", "filename_prefix"): (None, "hdps default."),
 }
 
-SECTIONS = {"field": FIELD, "night": NIGHT, "stars": STARS, "inject": INJECT, "camera": CAMERA, "lightcurves": LIGHTCURVES,
+SECTIONS = {"field": FIELD, "night": NIGHT, "stars": STARS, "inject": INJECT, "camera": CAMERA, "image": IMAGE,
+            "lightcurves": LIGHTCURVES,
             "truth": TRUTH, "output": OUTPUT}
 
 
@@ -573,9 +745,15 @@ def template():
         lines += block(f"argussim.{sub}", ps, "ArgusSim: how the image is taken. Defaults are read from ArgusSim.")
     lines += block("camera", CAMERA, "The toy camera (mesa_argus/camera.py): electrons to ADU, which ArgusSim does "
                    "not define. none: the default described.")
+    lines += block("image", IMAGE, "This repository's renderer (mesa_argus/sensor.py; ArgusSim has no image "
+                   "renderer): the PSF's outer wing.")
     lines += block("hdps", HDPS, "hdps: the pipeline the raw frames go through.") + block("hdps.coadd", HDPS_COADD)
     lines += notes("[[hdps.tasks]]: hdps's Task chain, in order, run by hdps.orchestrate's PipelineExecutor; each "
                    "[hdps.tasks.config] holds the Task's constructor parameters.") + [""]
+    for t in TOY_TASKS:
+        lines += notes(f"Toy Task {t['type']}: allowed in the chain in place of hdps's own (mesa_argus/schema.py "
+                       "TOY_TASKS), not in the default chain.")
+    lines.append("")
     for t in TASKS:
         lines += ["[[hdps.tasks]]", f"type = \"{t['type']}\"", "[hdps.tasks.config]"]
         for k, v in t["config"].items():
