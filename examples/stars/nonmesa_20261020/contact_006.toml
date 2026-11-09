@@ -1,0 +1,385 @@
+# Non-MESA coverage templates; not population weights.
+
+[[star]]
+name = "libnm_contact_c5c98e529cd2d8"
+generator = "W UMa"
+period = 0.3816650948308247
+q = 0.8365713178366423
+incl = 87.22301914445895
+teff1 = 5668.026812933385
+teff2 = 5746.193666802995
+fillout = 0.5571238478273154
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_a9317078060b27"
+generator = "W UMa"
+period = 0.8570750382496601
+q = 0.3460786994546652
+incl = 74.63931300845321
+teff1 = 6835.326079651713
+teff2 = 6454.936440336694
+fillout = 0.32230146128684284
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_6456f39d522a84"
+generator = "W UMa"
+period = 0.26654538612705625
+q = 0.6923086759448052
+incl = 77.11581281095143
+teff1 = 6351.496106386185
+teff2 = 6182.379541192519
+fillout = 0.031664438731968406
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_5ba5ec47a51e73"
+generator = "W UMa"
+period = 0.5429264057860814
+q = 0.31181292355060575
+incl = 84.84507411320652
+teff1 = 4406.686240620911
+teff2 = 3983.186391248961
+fillout = 0.6557837557047606
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_0d9c4e859ae942"
+generator = "W UMa"
+period = 0.656347350595583
+q = 0.5223970370739699
+incl = 81.31310147611555
+teff1 = 5040.215110871941
+teff2 = 4847.460312837046
+fillout = 0.4735379907675088
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_686f6ed26b6d26"
+generator = "W UMa"
+period = 0.70791963537059
+q = 0.1304197481274605
+incl = 46.389404010180584
+teff1 = 7467.434589099139
+teff2 = 7401.995439233981
+fillout = 0.1396742761693895
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_1622662715618e"
+generator = "W UMa"
+period = 0.4616642496117252
+q = 0.6243227815628052
+incl = 89.01082650827028
+teff1 = 5524.90380005911
+teff2 = 5086.728852216623
+fillout = 0.7641273361630738
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_bb5faf9c8116ff"
+generator = "W UMa"
+period = 0.481641533475799
+q = 0.38649796657264235
+incl = 75.3382202059717
+teff1 = 5385.817628540099
+teff2 = 5320.772933223965
+fillout = 0.25678070450201634
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_1a1808136c7995"
+generator = "W UMa"
+period = 0.9604319568827928
+q = 0.3247286239266396
+incl = 85.50409803265418
+teff1 = 6252.442928031087
+teff2 = 6033.006563509474
+fillout = 0.794418454747647
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_f75b26a82072ed"
+generator = "W UMa"
+period = 0.3248552891520586
+q = 0.7052212226390838
+incl = 61.45382612366822
+teff1 = 5094.180469028652
+teff2 = 4556.173810151108
+fillout = 0.15813167566433547
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_0ef02b884deb3a"
+generator = "W UMa"
+period = 0.39177723152697025
+q = 0.9208877467364073
+incl = 40.376341973841846
+teff1 = 4557.4563902802765
+teff2 = 4420.577705674548
+fillout = 0.34036795631051064
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_7fdf16f068a8fc"
+generator = "W UMa"
+period = 0.7956203508621955
+q = 0.5369846936315298
+incl = 88.22909102608195
+teff1 = 6490.853919368237
+teff2 = 5845.257005295064
+fillout = 0.587808846347034
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_27130bb624df65"
+generator = "W UMa"
+period = 0.5805539599812155
+q = 0.17249712407588957
+incl = 78.0918164718026
+teff1 = 5625.838559214026
+teff2 = 5330.956288038138
+fillout = 0.049789675921201704
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_730170d5635730"
+generator = "W UMa"
+period = 0.739700380909225
+q = 0.590985805913806
+incl = 83.95884501034433
+teff1 = 5775.770742539316
+teff2 = 5535.526509197376
+fillout = 0.19524505998939276
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_35437d3fd2b681"
+generator = "W UMa"
+period = 0.44157888582183774
+q = 0.20489261589944363
+incl = 76.21087539768843
+teff1 = 6921.308135148138
+teff2 = 6144.953499596961
+fillout = 0.7359533146023751
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_ad78f004947961"
+generator = "W UMa"
+period = 0.624213207623965
+q = 0.9967235574126243
+incl = 73.75988187318362
+teff1 = 6628.771516960114
+teff2 = 6591.9664773071745
+fillout = 0.4407696670293808
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_8442993ae044e3"
+generator = "W UMa"
+period = 0.23148987371365295
+q = 0.5006263941526413
+incl = 86.38371807720064
+teff1 = 4710.636815149337
+teff2 = 4352.186410772387
+fillout = 0.2924054503068328
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_a6a32d78407c8a"
+generator = "W UMa"
+period = 0.28027024848805293
+q = 0.27287512712180617
+incl = 89.84911429006755
+teff1 = 4956.5003065392375
+teff2 = 5008.242687341377
+fillout = 0.10863587303087116
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_ce10d7a5a6c9de"
+generator = "W UMa"
+period = 0.5160588904104689
+q = 0.7723823120445013
+incl = 55.722569996335544
+teff1 = 6099.781903997064
+teff2 = 5739.908027367942
+fillout = 0.648915919456631
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_e8a11c43a142b5"
+generator = "W UMa"
+period = 0.36526290760990265
+q = 0.43089744478464126
+incl = 79.79369952951909
+teff1 = 7165.7508961856365
+teff2 = 6997.960785184127
+fillout = 0.5518030668236316
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_148f21f75dcf20"
+generator = "W UMa"
+period = 0.30076647019436725
+q = 0.5800694496184587
+incl = 88.08448765235589
+teff1 = 5240.40140369907
+teff2 = 5116.287199410873
+fillout = 0.7334202889911831
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_14c7f6c46832a8"
+generator = "W UMa"
+period = 0.5038188637223846
+q = 0.19013430811464788
+incl = 32.87909154079422
+teff1 = 7170.592011418194
+teff2 = 6502.536235626645
+fillout = 0.19475631752982736
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_75f3b045c93a20"
+generator = "W UMa"
+period = 0.33986806511916445
+q = 0.9583038441836834
+incl = 78.00414736986929
+teff1 = 6107.02647222206
+teff2 = 6169.131422472116
+fillout = 0.29336882719770074
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_d3505407b5380b"
+generator = "W UMa"
+period = 0.41179050838549525
+q = 0.7288340500742198
+incl = 75.44705159740519
+teff1 = 6635.903736576438
+teff2 = 6132.798171193434
+fillout = 0.1107401528954506
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_257655c1a3cc68"
+generator = "W UMa"
+period = 0.6098586647206514
+q = 0.417831864207983
+incl = 66.61427509174256
+teff1 = 6926.308889687061
+teff2 = 6640.069635353644
+fillout = 0.4013772684335709
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_adad246d62058d"
+generator = "W UMa"
+period = 0.24860250676848836
+q = 0.8043569840490818
+incl = 85.62937971735393
+teff1 = 5770.888237841427
+teff2 = 5125.1753385812
+fillout = 0.5511730348691345
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_a66213f3fb7a85"
+generator = "W UMa"
+period = 0.4625015177794735
+q = 0.34456438310444354
+incl = 46.751501617993405
+teff1 = 5629.993832297623
+teff2 = 5724.420730154719
+fillout = 0.501688262373209
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_edad5295b1d911"
+generator = "W UMa"
+period = 0.7071359529038076
+q = 0.8380394796282054
+incl = 88.82328240317925
+teff1 = 6776.105272769928
+teff2 = 6419.111328138193
+fillout = 0.2558633543178439
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_178a8141f38b14"
+generator = "W UMa"
+period = 0.6541665734626133
+q = 0.6937703336775303
+incl = 78.68978971357821
+teff1 = 4565.434183739126
+teff2 = 4110.112350580739
+fillout = 0.796813028305769
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_1fe27acdac2953"
+generator = "W UMa"
+period = 0.5415099511888959
+q = 0.9043066174536943
+incl = 77.30492644841333
+teff1 = 5102.093227673322
+teff2 = 4924.448800971391
+fillout = 0.5882974507845938
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_286ae3d5a9c033"
+generator = "W UMa"
+period = 0.2666473504375636
+q = 0.5242388150840998
+incl = 84.81735172562827
+teff1 = 6244.411919545382
+teff2 = 5586.610525060353
+fillout = 0.3429007509164512
+distance = 10.0
+mh = 0.0
+
+[[star]]
+name = "libnm_contact_1fcc3b5caeb543"
+generator = "W UMa"
+period = 0.8529872750473262
+q = 0.6223192445933818
+incl = 87.43062839919357
+teff1 = 7311.34395590052
+teff2 = 7225.072412513558
+fillout = 0.04772844729945064
+distance = 10.0
+mh = 0.0

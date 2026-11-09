@@ -14,6 +14,8 @@ For each observation folder (outputs/pseudo_real/<name>) and band:
     <out>/manifest.json                          per night and band: date, Moon illumination, the hdps settings that
                                                  decide which alerts exist (bright-star mask, real/bogus model and
                                                  cut), the schema version, packet counts by truth class
+    <out>/viewer.html                            the alert viewer (tools/alert_viewer.html) as a page of its own: opened
+                                                 in a browser it reads this folder (cutouts, light curves, sky, truth)
 
 The packets are the stream Argus would send (mesa_argus.alert_files: hdps's AlertVettingTask builds every packet,
 the file stands in for Kafka); nothing in them is changed or added. The truth comes from the engine's
@@ -77,13 +79,21 @@ def window_deg2(folder, band, obs):
 
 def night_settings(folder, band):
     """The resolved observation's settings that decide which alerts exist."""
+    from datetime import date, timedelta
+
     obs = tomllib.loads((folder / "observation.toml").read_text())
     tasks = {t["type"]: t.get("config", {}) for t in obs["hdps"]["tasks"]}
     sfft, vet = tasks.get("SFFTSubtractionTask", {}), tasks.get("AlertVettingTask", {})
     area = window_deg2(folder, band, obs)
     inject = len(sources_by_label(folder))  # the library stars placed over the window (scene/sources.json)
-    return dict(field=obs["stars"].get("background", ""), date=obs["night"]["date"],
-                tpv_terms=tasks.get("TPVWCSSolverTask", {}).get("tpv_terms", 17),
+    first = min(obs["night"].get("only_nights") or [1])  # [night] only_nights: night k of [night] date's observation
+    image = obs.get("image", {})
+    return dict(field=obs["stars"].get("background", ""),
+                date=(date.fromisoformat(obs["night"]["date"]) + timedelta(days=first - 1)).isoformat(),
+                true_calibration="TrueCalibrationTask" in tasks, psf_box=image.get("psf_box", 28),
+                psf_halo=bool(image.get("psf_halo")),
+                tpv_terms=None if "TrueCalibrationTask" in tasks  # (no TPV fit runs)
+                else tasks.get("TPVWCSSolverTask", {}).get("tpv_terms", 17),
                 mask_bright_stars=sfft.get("mask_bright_stars"),
                 bright_star_threshold=sfft.get("bright_star_threshold"), model_bundle=vet.get("model_bundle") or "",
                 score_cut=vet.get("score_cut"), emit_all_candidates=vet.get("emit_all_candidates"),
@@ -166,10 +176,14 @@ def one_band(folder, band, out, min_sigma, cut=None, validate=False, write=True)
     table_path = folder / f"{run}_night_{band}.alerts.csv"
     if not files or not table_path.exists():
         return None
-    table = pd.read_csv(table_path, low_memory=False)
-    table["alertId"] = table["alertId"].fillna("").astype(str)
+    table = pd.read_csv(table_path, low_memory=False, dtype={"alertId": str})
+    table["alertId"] = table["alertId"].fillna("")
     table["label"] = label(table, min_sigma)
     by_id = table[table["alertId"] != ""].drop_duplicates("alertId").set_index("alertId")
+    # a packet without its alertId in the table (schema v4: hdps_worker writes <epochId>.avro and the engine's
+    # alert_table looks for <frame>.avro, so the column is empty) is the row at its candidate's ra, dec: the packet's
+    # are the row's, written from the same values
+    at = {(r, d): k for k, (r, d) in enumerate(zip(table["ra_deg"], table["dec_deg"]))}
     sources = sources_by_label(folder)
     dest = out / name / band / "packets"
     if write:  # (write=False: the manifest entry only; packets and truth.parquet as they are)
@@ -206,8 +220,9 @@ def one_band(folder, band, out, min_sigma, cut=None, validate=False, write=True)
             alert_id = str(packet["alertId"])
             row = dict(alertId=alert_id, epochId=c["epochId"], ra=c["ra"], dec=c["dec"],
                        packet_file=f"packets/{path.name}")
-            if alert_id in by_id.index:
-                t = by_id.loc[alert_id]
+            t = (by_id.loc[alert_id] if alert_id in by_id.index
+                 else table.iloc[at[(c["ra"], c["dec"])]] if (c["ra"], c["dec"]) in at else None)
+            if t is not None:
                 row.update(exposure=int(t["exposure"]), time_utc=t["time_utc"], truth_class=t["truth_class"],
                            truth_label=t["truth_label"] if isinstance(t["truth_label"], str) else "",
                            truth_sep_arcsec=t["truth_sep_arcsec"], truth_mag=t["truth_mag"],
@@ -220,7 +235,12 @@ def one_band(folder, band, out, min_sigma, cut=None, validate=False, write=True)
     truth = pd.DataFrame(rows)
     missing = int(truth["truth_class"].isna().sum()) if "truth_class" in truth else len(truth)
     if write:
-        truth.to_parquet(out / name / band / "truth.parquet", index=False)
+        # Variable-star truth goes in its own file: its truth_diff_flux and real/bogus label depend on the reference
+        # coadd of the camera that took the alert (truth_flux_reference), which is right only from the per-telescope
+        # reference fix (night_movie.py, 2026-10-30); samples run before that have unreliable variable labels.
+        is_var = truth["truth_class"] == "variable" if "truth_class" in truth else pd.Series(False, index=truth.index)
+        truth[~is_var].to_parquet(out / name / band / "truth.parquet", index=False)
+        truth[is_var].to_parquet(out / name / band / "truth_variables.parquet", index=False)
     settings = night_settings(folder, band)
     mid = table["time_utc"].iloc[len(table) // 2] if len(table) else None
     models = sorted({str(m) for m in table.get("model_version", pd.Series(dtype=str)).dropna().unique()})
@@ -242,8 +262,9 @@ def one_band(folder, band, out, min_sigma, cut=None, validate=False, write=True)
 CUTOUTS = """\
 ## Cutouts
 
-Every packet carries cutoutScience, cutoutDifference and cutoutTemplate, as ADR-0030 sec. 4 and TN-0004 ("Cutouts")
-specify: 32 x 32 little-endian IEEE 754 float32 in electrons, 4096 bytes each, row-major in the TAN segment's [y, x]
+Every packet carries cutoutScience, cutoutDifference and cutoutTemplate, as ADR-0032 sec. 4 (ADR-0030 until
+2026-10-28) and TN-0004 ("Cutouts") specify: 32 x 32 little-endian IEEE 754 float32 in electrons, 4096 bytes each,
+row-major in the TAN segment's [y, x]
 order (byte 4 * (32 * row + col) holds segment pixel (x0 + col, y0 + row), (x0, y0) the stamp's lowest-index corner;
 no rotation, CDELT1 negative: +y north, -x east at the segment's tangent point). Read one with
 `numpy.frombuffer(packet["cutoutDifference"], "<f4").reshape(32, 32)`.
@@ -258,47 +279,114 @@ no rotation, CDELT1 negative: +y north, -x east at the segment's tangent point).
   (optional per the meeting).
 - Pixel values are as hdps's tiles hold them: electrons per sensor-pixel area (hdps's reprojection keeps surface
   brightness, 0.879" tile pixels against 1.007" sensor pixels), so a star summed over a cutout is about 1.31 times its
-  electrons.
-- The filling is our implementation of ADR-0030 sec. 4 in hdps's AlertVettingTask (a local commit on top of hdps PR
+  electrons. hdps PR #488 (open) makes tile pixels flux-conserving (each pixel x ~0.755), which would change this.
+- The filling is our implementation of ADR-0032 sec. 4 in hdps's AlertVettingTask (a local commit on top of hdps PR
   #474, which defers cutout extraction): hdps's own code, the planes hdps already cuts its alert stamps from, until
   hdps's producer PR lands.
 """
 
-LIMITATIONS = """\
-## Simulation limitations
+def limitations(nights):
+    """The README's simulation limitations, for the nights' PSF and calibration settings (checked 2026-10-30 against the
+    Argus documents, hdps and the published specifications)."""
+    if all(n.get("psf_box", 28) > 28 and n.get("psf_halo") for n in nights):
+        boxes = "/".join(str(b) for b in sorted({n["psf_box"] for n in nights}))
+        psf = (f"- Bright stars' PSFs: ArgusSim's Zemax PSF (optics, delivered blur, Moffat seeing) drawn in a {boxes} px "
+               "box, with the delivered PSF's static halo as measured on sky (H. Corbett: an hdps tile stack, "
+               "unsaturated Gaia stars of G 8.5-12.5, fitted over 8-60 tile px) added after the seeing, so the wings "
+               "continue past the Zemax grid; the halo stops at the box's edge, 60 sensor px out, where it is ~1e-9 "
+               "of the star per pixel.")
+    else:
+        psf = ("- Bright stars' PSFs stop at ArgusSim's Zemax stamp, 28 x 28 sensor pixels: around the brightest stars "
+               "the wings end in a visible square, at about 50 e- per pixel, which can show in the cutouts of alerts "
+               "near bright stars.")
+    if all(n.get("true_calibration") for n in nights):
+        wcs = ("- ArgusSim applies no lens distortion: the true WCS of every exposure is a plain TAN projection, and "
+               "TrueCalibrationTask hands it to hdps in place of the solve (above). The PSF zero point is the "
+               "total-light one; hdps's own solve calibrates against aperture fluxes.")
+    else:
+        wcs = ("- ArgusSim applies no lens distortion: the true WCS of every exposure is a plain TAN projection. hdps "
+               "fits its TPV distortion (TPVWCSSolverTask, 17 terms by default) from an identity guess, because the "
+               "simulated cameras have no calibration file; that fit is what fails on the exposures without tiles "
+               "(above).")
+    return "\n".join(["## Simulation limitations", "", psf, wcs,
+        "- PSF photometry reads about 5.5% low: hdps's PSF flux of an unsaturated source is 0.952 (beta) and 0.938 "
+        "(rho) of its true flux, in the science image as in the difference, at every S/N and seeing; hdps's Moffat PSF "
+        "does not hold the halo and wings above. The flux errors are statistical only, so at S/N above ~50 this offset "
+        "is many sigma.",
+        "- Saturation: ArgusSim's full well is 21,657 e- (65,535 ADU at an older gain of 0.33 e-/ADU) and cores of "
+        "saturated stars are flat there. The production IMX461 cameras read 0.264-0.269 e-/ADU with a ~502 ADU bias, "
+        "so the 16-bit rail is ~17.3 ke- and hdps's saturation level ~16 ke-: real stars saturate ~0.3 mag fainter than "
+        "here. About 13% of the real transient alerts come from injected sources whose cores saturate (true flux above "
+        "~1.5e5 e-, brighter than mag ~12.8); they carry flag bit 0, and their PSF fluxes are 15-85% of the truth.",
+        "- Periodic stars' truth: truth_flux_reference is the star's cycle-mean flux, but each camera's reference holds "
+        "the star as it was during that camera's reference exposures, so truth_diff_flux (and the label) of a periodic "
+        "star can be off by up to ~20% of its flux (detached binaries out of eclipse are the worst: no change in the "
+        "difference image, a large one in the truth). The engine takes the reference flux from each camera's own "
+        "reference exposures from 2026-10-30.",
+        "- References: each camera's single best-seeing ratchet over the 5 nights before; the team's design stacks the "
+        "best few per tile across cameras (deeper and sharper), so the difference images here are noisier than "
+        "planned.",
+        "- Bands: beta is ArgusSim's b (362-527 nm); rho is 560-825 nm (the PI's bands, 2026-09-05), wider than the "
+        "r of the public specifications (560-700 nm), with the two bands split 1:1 across telescopes.",
+        "- Sky: ArgusSim's dark sky here is 1.2-1.5 e-/s per pixel in rho (V 21.35-21.59 mag/arcsec2); the Argus "
+        "documents measure 21-25 e-/s on moonlit frames and report no dark-sky measurement.",
+        "- Saturated cores are flat at the full well (ArgusSim's camera model); read noise 1.2 e- (the public "
+        "specifications give 1.4 e-).",
+        ""])
 
-- Bright stars' PSFs stop at ArgusSim's Zemax stamp, 28 x 28 sensor pixels: around the brightest stars the wings end in
-  a visible square, at about 50 e- per pixel, which can show in the cutouts of alerts near bright stars. A fitted outer
-  wing is planned.
-- Saturated cores are flat at the full well, 21,657 e- in the 60 s exposures (ArgusSim's camera model).
-- ArgusSim applies no lens distortion: the true WCS of every exposure is a plain TAN projection. hdps fits its TPV
-  distortion (TPVWCSSolverTask, 17 terms by default) from an identity guess, because the simulated cameras have no
-  calibration file; that fit is what fails on the exposures without tiles (above).
-"""
 
 KNOWN_GAPS = """\
 ## Known gaps
 
-The schema: hdps PR #474 (schema v4.0) is under review. The BOOM/Argus meeting decided on a single schema in which an
-alert holds a candidate with either an eventAssociation or an ssoAssociation child (the other null); PR #474 instead
-removes eventAssociation and puts eventId on the envelope, which is what its requested change is about. Expect the
-schema to change before it merges; this sample follows PR #474 as it stands.
+The schema (checked 2026-11-02): these packets follow hdps PR #474 (schema v4.0) as its documents define it at head
+35bd60dc (TN-0004, alert-packet.md; the ADR is now 0032). The envelope carries a `crossMatches` array (empty here: no
+reference-catalog crossmatch runs in the simulation), and the candidate carries a copy of the envelope `alertId`; the
+per-candidate `refcatName`, `refcatVersion` and `nearestSrc*` fields are gone (they moved into `crossMatches`). The PR
+is open with changes requested and its own .avsc files still lag its documents, so the schema may change before it
+merges. procVer 6c0309d.
 
-Gaps of hdps's v4.0 producer:
-- psfFluxDifErr is -1.0 (not produced) until hdps exposes the flux error from extract_features (hdps#476);
-- coadd is true on every alert (hdps#477);
-- fields with no producer yet are explicit blanks: filter 0, cameraIds/otaIds/filterIds/focuserIds/subarrayIds [],
-  referenceId -1 and the reference times 0.0, alertCadence 0; no solar-system association runs (ssoAssociation null);
-- JD(TT) is computed from hdps's Argus-epoch anchor inline (until hdps#410's argus_epoch_to_jd);
+In these packets:
+- schemaVersion is "4.0" (the BOOM/Argus discussion asks for major.minor.fix);
+- times are MJD(TT) and Argus epoch (TT seconds since 2025-01-01 00:00 TT, ADR-0012), as the schema defines; the
+  discussion asks for JD on BOOM's time scale, not yet in the schema;
+- timestampMjdTt / timestampArgusEpoch are when hdps built the packet, i.e. when the simulation was processed (weeks
+  after the simulated night), not the observation time plus a realistic latency;
+- epochId is the frame key of ADR-0024: the telescope code (here ArgusSim's telescope number + 1) above the exposure
+  midpoint in TT on a 1/256 s grid; cameraIds/otaIds/filterIds/focuserIds/subarrayIds are simulated asset ids
+  (100000/200000/300000/400000 + telescope code, 500000 + subarray), one per packet;
+- filter is 1 (beta) or 2 (rho); alertCadence 60; integrationTime 60 s; coadd false; coaddSpacing null;
+- flags: bit 0 (1) saturated, from hdps's detector-quality mask; bit 3 (8) near the segment's edge; no other bit is set;
+- eventAssociation.eventId is the HEALPix NESTED pixel at order 16 (provisional upstream); ssoAssociation is always
+  null (no solar-system association runs) and crossMatches is always empty (no reference-catalog crossmatch);
+- the candidate's alertId equals the envelope alertId (schema v4.0);
+- not produced (null or 0): starGalaxy*, artifact*, placeholderPhotometricCalibration (schema placeholders),
+  numReferenceSources, withdrawal times, raDecCovariance (0);
 - candidates without a sky position or a finite difference flux are not sent;
-- on Kafka each message would be one schemaless Avro record (topic and framing still to be decided upstream); here
-  each exposure's packets are one Avro object container file with the schema embedded.
+- on Kafka each message would be one Avro record (topic and framing are for a distribution ADR still to come); here
+  each exposure's packets are one Avro object container file (deflate codec) with the schema embedded.
 """
+
+
+def gaps_sentence(nights):
+    """Why exposures run can lack candidates (README): hdps's TPV fit, or none of it with TrueCalibrationTask."""
+    if all(n.get("true_calibration") for n in nights):
+        return ("These nights ran with TrueCalibrationTask in place of hdps's astrometric and photometric solve "
+                "(ReferenceRetrievalTask, LinearWCSSolverTask, SourceMatchingTask, TPVWCSSolverTask): each frame "
+                "carries the simulation's own WCS and zero point, as the solve would set them. The solve, started "
+                "from an identity guess because the simulated cameras have no camera calibration, fails on some "
+                "telescopes (residuals of 100-200\" against about 0.2\" on the others); segment reprojection then "
+                "finds a non-finite WCS grid on every tile and drops them all. With the true calibration no exposure "
+                "loses its tiles that way.")
+    return ("In the others hdps dropped every tile of the exposure: its TPV distortion fit (TPVWCSSolverTask), "
+            "started from an identity guess because the simulated cameras have no camera calibration, fails on some "
+            "telescopes (residuals of 100-200\" against about 0.2\" on the others), and segment reprojection then "
+            "finds a non-finite WCS grid on every tile and skips them all, so light curves have gaps there. "
+            + tpv_sentence(nights))
 
 
 def tpv_sentence(nights):
     """What the nights' TPV setting means for the gaps (README)."""
-    terms = sorted({n.get("tpv_terms", 17) for n in nights})
+    terms = sorted({n.get("tpv_terms", 17) for n in nights} - {None})
     if terms == [17]:
         return ("These nights ran with hdps's default of 17 TPV terms. With tpv_terms = 7 (a TPVWCSSolverTask setting, "
                 "no code change) the same exposures are live (tested on f359 2026-09-10 beta: 31 of 31 exposures with "
@@ -347,11 +435,7 @@ def write_readme(out, manifest):
               "difference-image candidate. With packets: those that sent at least one packet. "
               f"Over the sample, {live} of {run} exposures run produced candidates "
               f"({100 * live / run:.0f}%). " if run else "",
-              "In the others hdps dropped every tile of the exposure: its TPV distortion fit (TPVWCSSolverTask), "
-              "started from an identity guess because the simulated cameras have no camera calibration, fails on some "
-              "telescopes (residuals of 100-200\" against about 0.2\" on the others), and segment reprojection then "
-              "finds a non-finite WCS grid on every tile and skips them all, so light curves have gaps there. "
-              + tpv_sentence(nights),
+              gaps_sentence(nights),
               "Rates in this sample count exposures that produced candidates: the fa10 "
               "cut's 10 false alerts per square degree per exposure was measured over the calibration nights' "
               "exposures with candidates, and the packets per exposure of a night divide by its exposures with "
@@ -366,16 +450,37 @@ def write_readme(out, manifest):
               "- `<observation>/<band>/packets/<epochId>.avro`: one exposure's packets, exactly as hdps built them "
               "(read with any Avro reader, e.g. `fastavro.reader`).",
               "- `<observation>/<band>/truth.parquet`: one row per packet, joined on `alertId` (also `epochId`, "
-              "`ra`, `dec`): `injected` (true: one of the injected library stars), `truth_class` (transient, variable: an "
+              "`ra`, `dec`): `injected` (true: one of the injected library stars), `truth_class` (transient: an "
               "injected source; constant: a real star that did "
               "not change; none: nothing simulated there), `truth_label` and `source_*` (the injected source: kind, "
               "model, redshift, t0, ...), `truth_mag`, `truth_diff_flux` (its true flux change since the reference, "
               "electrons), and `label`: 1 real (an injected source whose true change is at least 3 times the "
               "candidate's PSF flux error), 0 bogus (a constant star or nothing), -1 an injected source changing less "
-              "than that.",
-              "- `manifest.json`: everything in the table above, per night and band (also cutout counts).", "",
-              CUTOUTS, LIMITATIONS, KNOWN_GAPS]
+              "than that. The variable-star rows are NOT here; they are in truth_variables.parquet.",
+              "- `<observation>/<band>/truth_variables.parquet`: the same columns, for the variable-star alerts only. "
+              "Kept separate because their `truth_diff_flux` and `label` are unreliable in this sample (see the "
+              "simulation limitations): the truth reference flux was the star's cycle mean, not its flux in each "
+              "camera's reference coadd.",
+              "- `manifest.json`: everything in the table above, per night and band (also cutout counts).",
+              "- `viewer.html`: an alert viewer. Open it in a browser (Chrome, Edge, Firefox or Safari) and choose this "
+              "folder, or drop the folder on it: it reads the packets and truth.parquet in the browser (nothing is "
+              "uploaded; reading truth.parquet loads one library from cdn.jsdelivr.net) and shows each alert's cutouts, "
+              "packet fields and truth, its source's light curve over the nights, and where it is on the sky.", "",
+              CUTOUTS, limitations(nights), KNOWN_GAPS]
     (out / "README.md").write_text("\n".join(lines))
+
+
+VIEWER_HEAD = ('<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
+               '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
+               '<style>:root{color-scheme:light;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}'
+               'body{margin:0;font:14px system-ui,-apple-system,"Segoe UI",sans-serif}img{max-width:100%}'
+               '[hidden]{display:none!important}</style></head><body>\n')
+
+
+def write_viewer(out):
+    """viewer.html: the alert viewer page (tools/alert_viewer.html, written as the body of a claude.ai artifact) in a
+    document of its own, beside the sample it reads."""
+    (out / "viewer.html").write_text(VIEWER_HEAD + (REPO / "tools" / "alert_viewer.html").read_text() + "\n</body></html>\n")
 
 
 def main(argv=None):
@@ -433,6 +538,7 @@ def main(argv=None):
             n["score_cut_value"] = None
     manifest_path.write_text(json.dumps(manifest, indent=1, default=str))
     write_readme(args.out, manifest)
+    write_viewer(args.out)
 
 
 if __name__ == "__main__":

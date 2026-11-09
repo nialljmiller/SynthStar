@@ -21,6 +21,7 @@ from functools import lru_cache
 import numpy as np
 
 MATCH_ARCSEC = 2.0
+FLUX_FLOOR = 1e-6  # hdps's detector writes a net-negative aperture sum as 1e-12; hdps drops <= 1e-6 (TransientOutputTask)
 HALF_WINDOW = 128  # the window the alert features run on: 257 x 257 tile px, as hdps's 256 px calibration regions
 SOURCE_VARIANCE = 0.3  # the share of the science image's counts in the variance plane (fitted to hdps's features)
 
@@ -76,7 +77,7 @@ def photometry(composed, dx, dy, zp):
         return np.nan, np.nan, np.nan, False
     sep = np.hypot(np.asarray(tab["xcentroid"]) - x, np.asarray(tab["ycentroid"]) - y) * px
     k = int(np.argmin(sep))
-    if sep[k] > MATCH_ARCSEC or not tab["flux"][k] > 0:
+    if sep[k] > MATCH_ARCSEC or not tab["flux"][k] > FLUX_FLOOR:
         return np.nan, np.nan, np.nan, False
     flux, err = float(tab["flux"][k]), float(tab["flux_err"][k])
     return zp - 2.5 * np.log10(flux), 1.0857 * err / flux, float(tab["snr"][k]), bool(tab["is_saturated"][k])

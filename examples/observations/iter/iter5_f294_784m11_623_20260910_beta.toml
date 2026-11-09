@@ -1,0 +1,244 @@
+# iter5 (TEST ONLY): iter4 with iter3's [inject] (200 library stars, seed 1000; the resolved configs had dropped
+# [inject], so iter4 had none) and the reference from the science night's own exposures with another noise draw
+# ([night] reference_oracle): the best any reference could be. Constant-star residuals left here are the
+# subtraction's own floor. Every 4th frame.
+
+
+
+[field]
+ra = 294.784
+dec = -11.623
+name = "iter5_f294_784m11_623_20260910_beta"
+block = 9
+window = 56
+window_offset = [0.0, 0.0]
+
+[night]
+date = "2026-09-10"
+nights = 1
+seed = 0
+reference_nights = 1
+reference_ratchets = 0
+reference_geometry_px = 0
+reference_oracle = true
+
+[stars]
+background = "f294_784m11_623_field"
+layout = "real"
+seed = 1
+missing = "stop"
+
+[argussim.observatory]
+latitude = 30.6716
+longitude = -104.0215
+altitude = 2070
+min_alt = 32.84
+seasonal_seeing = true
+seeing_mean = 0.87
+seeing_std = 0.15
+transparency = 1.0
+artificial_light_cd_m2 = 1.94
+solar_activity = 0.8
+
+[argussim.telescope]
+aperture_diameter = 280
+central_obstruction_diameter = 168
+focal_length = 770.0
+pixel_size = 3.76
+n_pixels_x = 11648
+n_pixels_y = 8742
+readnoise = 1.2
+dark_current = 0.0022
+fullwell = 21657
+throughput_loss = 1.0
+psf_model = "zemax"
+spot_size = 3.2
+ee50_max_px = 3.0
+randomize_pixel_phase = false
+
+[argussim.survey]
+min_sun_alt = -18
+min_moon_sep = 1.5
+solar_activity_prior = "epoch"
+apply_weather = true
+
+[argussim.schedule]
+exptime_s = 60.0
+track_min = 14.0
+reset_min = 1.0
+theta_start_deg = 3.75
+sun_alt_max_deg = -18.0
+
+[inject]
+number = 200
+seed = 1000
+
+[camera]
+gain = 0.37339655172413794
+offset = 0
+saturation_adu = 58000.0
+
+[image]
+psf_wing = false
+psf_wing_fit = [6, 11]
+psf_wing_join = [10, 13]
+psf_wing_radius = 400
+psf_wing_floor = 0.5
+psf_box = 121
+psf_box_floor = 0.5
+psf_halo = true
+psf_halo_beta = [4.9e-05, 34.1, 6.0]
+psf_halo_rho = [8e-05, 28.3, 6.0]
+psf_halo_taper = [10, 14]
+
+[hdps]
+refcat = "~/.rico_cache/atlas_refcat2"
+
+[hdps.coadd]
+strategy = "inverse_variance"
+clip_kappa = 3.0
+clip_min_frames = 3
+accumulation_dtype = "float32"
+
+[[hdps.tasks]]
+type = "DataCleanupTask"
+[hdps.tasks.config]
+target_dtype = "float32"
+nan_replacement = 0.0
+
+[[hdps.tasks]]
+type = "ImageReductionTask"
+[hdps.tasks.config]
+camera_specs = {serial_number = "MESA_ARGUS toy camera"}
+bias_path = "none"
+dark_path = "none"
+flat_path = "none"
+overscan_trimming = false
+bias_subtract = false
+gain = 0.37339655172413794
+gpu_reduce = true
+provider = "file"
+
+[[hdps.tasks]]
+type = "SourceDetectionTask"
+[hdps.tasks.config]
+detect_sigma = 3.0
+bg_region_size = 256
+max_sources = 10000000
+flux_radius = 4.0
+matched_filter_width = 4.0
+centroid_n_iter = 3
+cr_detect_contrast = 0.25
+de_dup_sources = true
+de_dup_radius = 6.0
+saturation_threshold = 0.9999
+
+[[hdps.tasks]]
+type = "SourceFilterTask"
+[hdps.tasks.config]
+min_x = 0
+min_y = 0
+max_x = "none"
+max_y = "none"
+min_snr = "none"
+
+[[hdps.tasks]]
+type = "TrueCalibrationTask"
+[hdps.tasks.config]
+
+[[hdps.tasks]]
+type = "LightweightFITSOutputTask"
+[hdps.tasks.config]
+output_dir = "./solved"
+
+[[hdps.tasks]]
+type = "ReprojectionTask"
+[hdps.tasks.config]
+segment_shape = [2048, 2048]
+grid_resolution = 33
+
+[[hdps.tasks]]
+type = "CoaddTapTask"
+[hdps.tasks.config]
+background_mode = "regional"
+
+[[hdps.tasks]]
+type = "SFFTSubtractionTask"
+[hdps.tasks.config]
+reference_mode = "coadd"
+kernel_half_width = 6
+kernel_poly_order = 0
+background_order = 2
+mask_saturated_in_fit = true
+mask_no_coverage_in_fit = true
+mask_bright_stars = false
+bright_star_threshold = 3000.0
+mask_dilation_growth = 4
+variance_conv = "direct"
+rejection_iters = 1
+rejection_sigma = 3.0
+rejection_grow = 2
+retain_planes = true
+
+[[hdps.tasks]]
+type = "DiffDetectionTask"
+[hdps.tasks.config]
+detect_sigma = 5.0
+bg_region_size = 256
+max_sources = 100000
+matched_filter_width = 4.0
+
+[[hdps.tasks]]
+type = "TransientOutputTask"
+[hdps.tasks.config]
+fmt = "parquet"
+
+[[hdps.tasks]]
+type = "AlertVettingTask"
+[hdps.tasks.config]
+enabled = true
+model_bundle = "data/rb/bundle_v1"
+detect_sigma = 3.0
+score_cut = "fa10"
+emit_all_candidates = true
+emit_stamps = true
+stamp_size = 31
+emit_kafka = false
+fmt = "parquet"
+
+[[hdps.tasks]]
+type = "TileImageOutputTask"
+[hdps.tasks.config]
+enabled = true
+output_dir = ""
+science_output_dir = ""
+difference_output_dir = ""
+save_science = true
+save_difference = true
+save_difference_variance = false
+compress = false
+tile_ids = "none"
+filename_prefix = "epoch"
+
+[lightcurves]
+link_arcsec = 1.5
+
+[truth]
+match_radius = 2.0
+alert_radius = 2.0
+
+[output]
+movie_window_px = 800
+movie_window_zoom = 3.0
+bands = ["beta"]
+movie = true
+catalogues = false
+alerts = true
+lightcurves = false
+pipeline_movie = false
+raw = false
+movie_data = true
+stride = 4
+fps = 24
+dpi = 100
+noise_seed = 3

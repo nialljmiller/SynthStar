@@ -30,7 +30,15 @@ Charts:
 
 ## 1. Overview: one observation, start to finish
 
-`python observe.py <observation file>` does all of it. Each band (β, ρ) runs as its own process, both at once.
+Four stages, each **started and ended by files on disk**, so each can run on its own machine: the star library on one,
+the synthetic images on another, hdps on a third (e.g. longleaf), the measurements on a fourth. Stage 3 *is* hdps —
+its real pipeline, the one the telescope runs; the simulation differs from the live run only in its task config (a
+simulated calibration in place of the astrometric solve, Avro files in place of the Kafka stream, an in-process
+fakeredis in place of valkey).
+
+`python observe.py <observation file>` drives stages 2–4 of a whole observation at once (each band β, ρ its own
+process). `python tools/run_hdps.py <frames> -o <out>` runs **stage 3 alone** — hdps's real Orchestrator over a
+directory of raw frames — so it can live on its own compute.
 
 ```mermaid
 flowchart TD
@@ -39,32 +47,39 @@ flowchart TD
   classDef hdps fill:#fde68a,stroke:#92400e,color:#3b1d02
   classDef out fill:#e5e7eb,stroke:#374151,color:#111827
 
-  LIB["Star library: each star's light over time (SED), built once<br/><small>make_stars.py → stars/ · MESA, PHOEBE, sncosmo, Gaia</small>"]:::ours
   OBS["Observation file: field, night, stars, every setting<br/><small>examples/observations/*.toml · schema.py · runconfig.py</small>"]:::ours
 
-  SCENE["① The scene: stars on the sky, dust, the night's exposures<br/><small>observe.py → scene/ · chart 2</small>"]:::ours
-  REF["② The reference night: hdps coadds to subtract against<br/><small>observe.py make_reference · chart 5</small>"]:::ours
-
-  subgraph NIGHT["③ The science night, for each band"]
-    EXP["Every exposure rendered and written as a raw camera frame<br/><small>night_movie.py · chart 3</small>"]:::ours
-    HDPS["hdps processes every raw frame<br/><small>hdps_worker.py · hdps GPUWorker · chart 4</small>"]:::hdps
-    MEAS["Measurements read from hdps's products<br/><small>night_movie.py · chart 6</small>"]:::ours
+  subgraph S1["① Star maker"]
+    LIB["Each star's light over time (SED), built once<br/><small>make_stars.py · MESA, PHOEBE, sncosmo, Gaia</small>"]:::ours
   end
+  F1["stars/ library<br/><small>sed.h5 · meta.json</small>"]:::out
 
-  LINK["④ Both bands' detections linked into light curves<br/><small>pipeline/lightcurves.py</small>"]:::ours
-  OUT["catalogues · photometry · alerts.csv · Avro alert packets<br/>light curves · movies"]:::out
+  subgraph S2["② Synthetic image maker, per band"]
+    SCENE["The scene: stars on the sky, dust, the exposure list<br/><small>observe.py → scene/ · chart 2</small>"]:::ours
+    EXP["Every exposure rendered as a raw Argus camera frame<br/><small>night_movie.py · chart 3</small>"]:::ours
+  end
+  F2["raw FITS frames (science + reference)<br/><small>hdps/&lt;band&gt;/raw/*.fits · chart 5</small>"]:::out
+
+  subgraph S3["③ hdps — the real pipeline"]
+    HDPS["hdps's real Orchestrator over every frame<br/><small>run_hdps.py / hdps_worker.py · hdps Orchestrator + GPUWorker (Ray, 1 worker) · chart 4</small>"]:::hdps
+  end
+  F3["hdps products: coadds, catalogues, Avro alert packets<br/><small>hdps/&lt;band&gt;/ · alerts/&lt;exposure&gt;.avro</small>"]:::out
+
+  subgraph S4["④ Truth, measurement, light curves"]
+    MEAS["Measurements + simulation truth from hdps's products<br/><small>night_movie.py · chart 6</small>"]:::ours
+    LINK["Both bands' detections linked into light curves<br/><small>pipeline/lightcurves.py</small>"]:::ours
+  end
+  OUT["catalogues · photometry · alerts.csv · light curves · movies"]:::out
   TRAIN["Real/bogus training, over many observations<br/><small>chart 7</small>"]:::ours
 
-  LIB -->|"SEDs"| SCENE
+  OBS --> LIB
   OBS --> SCENE
-  SCENE -->|"same field and stars, transients left out"| REF
-  SCENE -->|"stars, exposure list"| EXP
-  EXP -->|"raw FITS frames"| HDPS
-  REF -->|"reference coadds"| HDPS
-  HDPS -->|"hdps products"| MEAS
-  MEAS -->|"per-frame catalogues"| LINK
-  MEAS --> OUT
-  LINK --> OUT
+  LIB --> F1
+  F1 -.->|"SEDs"| SCENE
+  SCENE --> EXP --> F2
+  SCENE -.->|"reference night, chart 5"| F2
+  F2 -->|"raw frames (+ reference coadds)"| HDPS --> F3
+  F3 -->|"hdps products"| MEAS --> LINK --> OUT
   OUT -.->|"labelled alerts"| TRAIN
   TRAIN -.->|"trained model bundle"| HDPS
 ```
@@ -143,9 +158,12 @@ flowchart TD
 
 ## 4. hdps on every frame
 
-hdps's own worker (`GPUWorker`) running hdps's production Task chain, unchanged, on the CPU through the
-`hdps_full_cpu` branch. One worker per band. The chain and every setting are `[[hdps.tasks]]` in the observation file.
-A frame that a Task fails on is skipped; the rest carry on.
+hdps's **real Orchestrator** — the path `hdps batch process` runs: it spawns one Ray worker actor (hdps's own
+`GPUWorker`, which builds hdps's `PipelinedExecutor`) and runs hdps's production Task chain, unchanged. Driven by
+`run_hdps.py` (stage 3 on its own) or by `hdps_worker.py` inside `observe.py`; nothing of hdps is reimplemented or
+monkey-patched — the alert sink, the classifier and the calibration are all chosen through task config. On a CPU host
+the compute runs through the `no_cupy` shim while Ray still schedules the one worker on a (logical) GPU. The chain and
+every setting are `[[hdps.tasks]]` in the observation file. A frame that a Task fails on is skipped; the rest carry on.
 
 ```mermaid
 flowchart TD
@@ -155,7 +173,7 @@ flowchart TD
 
   RAW["Raw frames<br/><small>chart 3</small>"]:::out
   MAN["Frames grouped by camera and ratchet<br/><small>group_images_by_ratchet_camera · ManifestSource</small>"]:::hdps
-  CACHE["WCS cache: each camera's solution, reused within a ratchet<br/><small>worker · valkey → fakeredis</small>"]:::toy
+  CACHE["WCS cache: each camera's solution, reused within a ratchet<br/><small>worker · valkey, run offline on an in-process fakeredis (per Ray actor)</small>"]:::toy
 
   subgraph CHAIN["hdps's Task chain, in order: each Task hands the frame, then its tiles, to the next"]
     T1["Clean and reduce: ADU → electrons, saturated pixels flagged<br/><small>DataCleanup · ImageReduction</small>"]:::hdps
@@ -173,9 +191,9 @@ flowchart TD
   end
 
   REFC["Reference coadds<br/><small>chart 5</small>"]:::out
-  RB["Real/bogus model: no bundle → every score 1;<br/>a trained bundle → hdps's RFBundleClassifier<br/><small>hdps_worker.py AllReal · chart 7</small>"]:::toy
+  RB["Real/bogus, chosen by model_bundle: no bundle → hdps's<br/>PassthroughClassifier (every score 1); a trained bundle → RFBundleClassifier<br/><small>hdps.alerts.classifier · AlertVetting model_bundle · chart 7</small>"]:::hdps
   FIN["Ratchet coadds closed at each ratchet change and at the end<br/><small>worker finalize_ratchet · CoaddWriter</small>"]:::hdps
-  KAFKA["Alert packets for the accepted alerts only: Avro, the public<br/>argus.alert schema, one file per exposure<br/><small>alert_files.py, in place of Kafka</small>"]:::toy
+  KAFKA["Alert packets, accepted alerts only: Avro, the argus.alert schema,<br/>one file per exposure — hdps's offline sink in place of the Kafka stream<br/><small>AlertVetting emit_avro · hdps.alerts.avro_file</small>"]:::hdps
 
   subgraph PRODUCTS["Written to hdps/&lt;band&gt;/"]
     P1["solved frames: sources, WCS, zero point<br/><small>solved/*_solved.fits</small>"]:::out
@@ -210,7 +228,7 @@ flowchart TD
 
   RN["The night(s) before: same field and stars;<br/>transients left out; injected variables kept, no new injection<br/><small>observe.py make_reference · night.reference_nights (default 1)</small>"]:::ours
   RX["Exposures rendered as raw frames<br/><small>chart 3</small>"]:::ours
-  RH["hdps up to the coadd step, nothing after<br/><small>hdps_worker.run(stop_after=CoaddTapTask)</small>"]:::hdps
+  RH["hdps up to the coadd step, nothing after<br/><small>run_hdps.py --coadd-only · hdps_worker.run(stop_after=CoaddTapTask)</small>"]:::hdps
   RC["Ratchet coadds, one per camera, ratchet and tile<br/><small>reference/hdps/&lt;band&gt;/coadds/</small>"]:::out
   PICK["For each tile, SFFT takes one coadd: the deepest<br/><small>hdps CoaddReferenceProvider</small>"]:::hdps
   SCI["Science night's subtraction<br/><small>chart 4, SFFTSubtraction</small>"]:::hdps

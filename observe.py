@@ -56,6 +56,9 @@ def read_observation():
     p.add_argument("--place", action="append", default=[], help="a [[place]] as a TOML inline table (replaces the file's)")
     p.add_argument("--set", action="append", default=[], metavar="SECTION.KEY=VALUE", help="any key, e.g. output.stride=10")
     p.add_argument("--scene-only", action="store_true", help="write the scene and stop")
+    p.add_argument("--decoupled", action="store_true",
+                   help="render every band's raw stack first, then run hdps on the stacks (two passes sharing one work "
+                        "dir), instead of the fused render+hdps: the image-maker/hdps split of a run")
     a = p.parse_args()
     flags = (("ra", "field.ra"), ("dec", "field.dec"), ("name", "field.name"), ("date", "night.date"),
              ("bands", "output.bands"))
@@ -67,7 +70,7 @@ def read_observation():
         overrides["place"] = [runconfig.parse_value(t if t.strip().startswith("{") else "{" + t + "}") for t in a.place]
     obs = runconfig.resolve(runconfig.merge(runconfig.load(a.observation), overrides))
     obs["field"]["name"] = obs["field"]["name"] or a.observation.stem
-    return obs, a.scene_only
+    return obs, a.scene_only, a.decoupled
 
 
 def built_star(name):
@@ -286,9 +289,11 @@ def place_stars(placements, scene_dir, night_info, half_width, rng):
     return rows, extra
 
 
-def run_engine(obs, out, n_placed, extra=(), reference=None):
+def run_engine(obs, out, n_placed, extra=(), reference=None, decoupled=False):
     """The engine (night_movie.py) for each band at once (each is single-threaded): the band's exposures as raw frames
-    through hdps, with the band's hdps coadds as references (reference: the folder holding <band>/coadds)."""
+    through hdps, with the band's hdps coadds as references (reference: the folder holding <band>/coadds).
+    decoupled: render every band's raw stack first (--stop-after-render), then run hdps on those stacks
+    (--hdps-from-stack) as a separate pass sharing the same --work, instead of the fused render+hdps in one call."""
     name, o = obs["field"]["name"], obs["output"]
     options = ["--observation", str(out / "observation.toml"), "--work", str(out / "hdps"), "--stride", str(o["stride"]),
                "--fps", str(o["fps"]), "--dpi", str(o["dpi"]), "--seed", str(o["noise_seed"]),
@@ -300,27 +305,35 @@ def run_engine(obs, out, n_placed, extra=(), reference=None):
     if o["catalogues"]:
         options += ["--catalogues", str(out / "catalogues")]
     options += list(extra)
-    running = []
-    for band in o["bands"]:
-        mp4 = out / f"{name}_night_{band}.mp4"
-        print(f"observing {band} -> {mp4.relative_to(REPO)} (log {mp4.with_suffix('.log').relative_to(REPO)})", flush=True)
-        log = open(mp4.with_suffix(".render.log" if "--render-only" in extra else ".log"), "w")
-        band_options = ["--reference", str(reference / band / "coadds")] if reference is not None else []
-        command = [sys.executable, "night_movie.py", "--scene", str(out / "scene"), "--field", name, "--band", band,
-                   "-o", str(mp4), *options, *band_options]
-        # NUMBA_BOUNDSCHECK: an out-of-range index in a numba kernel (hdps's CPU mirrors) raises IndexError, which hdps's
-        # worker counts as one failed frame, instead of a segmentation fault that kills the band's whole run (two ρ
-        # runs died that way on 2026-10-23, in a numba kernel during difference detection)
-        # (its own NUMBA_CACHE_DIR: kernels cached without the check would otherwise be reused without it)
-        env = dict(os.environ, NUMBA_BOUNDSCHECK="1", NUMBA_CACHE_DIR=os.path.expanduser("~/.cache/numba_boundscheck"))
-        running.append((band, log, subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, env=env)))
-    failed = []
-    for band, log, process in running:
-        if process.wait() != 0:
-            failed.append(band)
-        log.close()
-    if failed:
-        raise SystemExit(f"the engine failed for {', '.join(failed)}: see the log(s) in {out.relative_to(REPO)}/")
+
+    def launch(phase_extra, suffix):  # start night_movie for every band at once, wait, raise on any failure
+        running = []
+        for band in o["bands"]:
+            mp4 = out / f"{name}_night_{band}.mp4"
+            print(f"observing {band} -> {mp4.relative_to(REPO)} (log {mp4.with_suffix(suffix).relative_to(REPO)})", flush=True)
+            log = open(mp4.with_suffix(suffix), "w")
+            band_options = ["--reference", str(reference / band / "coadds")] if reference is not None else []
+            command = [sys.executable, "night_movie.py", "--scene", str(out / "scene"), "--field", name, "--band", band,
+                       "-o", str(mp4), *options, *phase_extra, *band_options]
+            # NUMBA_BOUNDSCHECK: an out-of-range index in a numba kernel (hdps's CPU mirrors) raises IndexError, which
+            # hdps's worker counts as one failed frame, instead of a segmentation fault that kills the band's whole run
+            # (two ρ runs died that way on 2026-10-23, in a numba kernel during difference detection). Its own
+            # NUMBA_CACHE_DIR: kernels cached without the check would otherwise be reused without it.
+            env = dict(os.environ, NUMBA_BOUNDSCHECK="1", NUMBA_CACHE_DIR=os.path.expanduser("~/.cache/numba_boundscheck"))
+            running.append((band, log, subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, env=env)))
+        failed = []
+        for band, log, process in running:
+            if process.wait() != 0:
+                failed.append(band)
+            log.close()
+        if failed:
+            raise SystemExit(f"the engine failed for {', '.join(failed)}: see the log(s) in {out.relative_to(REPO)}/")
+
+    if decoupled:  # the image-maker half (every band's raw stack), then the hdps half, two passes sharing one --work
+        launch(["--stop-after-render"], ".render.log")
+        launch(["--hdps-from-stack"], ".log")
+    else:
+        launch([], ".render.log" if "--render-only" in extra else ".log")
     if o["catalogues"] and o["lightcurves"] and "--hdps-pass" not in extra and "--render-only" not in extra:
         from mesa_argus.pipeline import lightcurves
 
@@ -331,9 +344,9 @@ def run_engine(obs, out, n_placed, extra=(), reference=None):
 def main():
     import os
 
-    obs, scene_only = read_observation()
+    obs, scene_only, decoupled = read_observation()
     os.chdir(REPO)
-    observe(obs, runconfig.output_folder(obs["field"]["name"], obs["stars"]["layout"]), scene_only)
+    observe(obs, runconfig.output_folder(obs["field"]["name"], obs["stars"]["layout"]), scene_only, decoupled=decoupled)
 
 
 def make_reference(obs, out, placements, science=None):
@@ -346,7 +359,8 @@ def make_reference(obs, out, placements, science=None):
 
     reference = copy.deepcopy(obs)
     n = obs["night"]["reference_nights"]
-    reference["night"].update(date=(Date.fromisoformat(obs["night"]["date"]) - timedelta(days=n)).isoformat(), nights=n)
+    reference["night"].update(date=(Date.fromisoformat(obs["night"]["date"]) - timedelta(days=n)).isoformat(), nights=n,
+                              only_nights=[])  # all of its own nights, whichever of the science nights run
     reference["place"] = [place for place, folder, meta in placements if meta["timing"] != "transient"]
     reference["inject"]["number"] = 0  # the injected periodic stars are in [[place]] above; no transients
     # every exposure, whatever the science night's stride: a reference is a deep stack (hdps's coadds of whole ratchets);
@@ -377,21 +391,36 @@ def make_reference(obs, out, placements, science=None):
     return ref_out / "hdps"
 
 
+def only_nights(coverage, n, obs):
+    """[night] only_nights: the exposures of those nights (night k: local mean noon of the first date + k - 1 to the
+    next)."""
+    from argus_sim import c as cfg
+    from astropy.time import Time
+
+    noon = Time(f"{n['date']}T12:00:00", scale="utc").jd - cfg.observatory.longitude / 360.0  # local mean noon, UTC
+    night_of = np.floor(Time(list(coverage["time"]), scale="utc").jd - noon).astype(int) + 1
+    keep = np.isin(night_of, n["only_nights"])
+    if not keep.any():
+        raise SystemExit(f"[night] only_nights {n['only_nights']}: no exposures on those nights")
+    print(f"[night] only_nights {n['only_nights']}: {int(keep.sum())} of {len(coverage)} exposures (nights "
+          f"{sorted(set(night_of.tolist()))} in all)", flush=True)
+    return coverage[keep]
+
+
 def ratchet_views(coverage, ra, dec):
     """Each (telescope, band, ratchet) of the exposures at its first exposure: the field centre's sensor x, y (px) and
     its seeing there (the ratchet's zenith seeing x airmass^0.6, ArgusSim's seeing_at_airmass)."""
     from argus_sim import c as cfg
-    from argus_sim.coverage_exact import Layout
     from argus_sim.observatory import seeing_at_airmass
     from astropy.time import Time
 
-    from mesa_argus import night
+    from mesa_argus import night, survey
     from mesa_argus.sensor import Projector
 
     times = Time(list(coverage["time"]), scale="utc")
     airmass, _, _ = night.sky_position(times, ra, dec, night.location(cfg))
     seeing = seeing_at_airmass(np.asarray(coverage["seeing_zenith"], float), airmass)
-    projector = Projector(np.array([ra]), np.array([dec]), times, Layout.from_config())
+    projector = Projector(np.array([ra]), np.array([dec]), times, survey.array_layout(coverage.meta["layout"]))
     views = {}
     for j in range(len(coverage)):
         key = (int(coverage["tel_id"][j]), str(coverage["band"][j]), int(coverage["ratchet"][j]))
@@ -437,7 +466,7 @@ def best_seeing_ratchets(coverage, ra, dec, best, match=None):
     return coverage[keep]
 
 
-def observe(obs, out, scene_only=False, engine_options=None, best_ratchets=0, match=None, before=None, tweak=None):
+def observe(obs, out, scene_only=False, engine_options=None, best_ratchets=0, match=None, before=None, tweak=None, decoupled=False):
     """Write the observation's scene into `out`, then run the engine on it (engine_options: extra engine arguments;
     None for a full observation, which makes the reference first if alerts are asked for; best_ratchets: observe only
     each telescope's best-seeing ratchets, best_seeing_ratchets, 0 for all; match: (science exposures, px) for
@@ -479,7 +508,8 @@ def observe(obs, out, scene_only=False, engine_options=None, best_ratchets=0, ma
     from astropy.table import unique
     from mesa_argus import survey  # the exposures ArgusSim's array takes of the pointing (mesa_argus/survey.py)
 
-    coverage = survey.exposures(ra, dec, n["date"], n["nights"], n["seed"])
+    coverage = survey.exposures(ra, dec, n["date"], n["nights"], n["seed"],
+                                layout=obs["argussim"]["packing_strategy"]["layout_file"])
     if len(coverage) == 0:
         raise SystemExit(f"the array does not cover RA {ra}, Dec {dec} on the night of {n['date']}")
     if tweak is not None:  # TEST ONLY: [night] reference_oracle_seeing, reference_oracle_shift_px
@@ -502,6 +532,8 @@ def observe(obs, out, scene_only=False, engine_options=None, best_ratchets=0, ma
     placements += injected
     if injected:
         print(f"[inject]: {len(injected)} library stars over the readout window", flush=True)
+    if n["only_nights"] and engine_options is None:  # [night] only_nights: the scene above is all the nights'
+        coverage = only_nights(coverage, n, obs)
 
     # the field: HDPS tile and block, dust, background, placed stars
     tile_id, minipix = skymap_shim.radec_to_composite_id(np.array([ra]), np.array([dec]))
@@ -552,8 +584,11 @@ def observe(obs, out, scene_only=False, engine_options=None, best_ratchets=0, ma
         engine_options = []
         if obs["output"]["alerts"]:
             reference = make_reference(obs, out, placements, coverage)
+        if n["only_nights"]:  # the frames' noise apart from other nights' runs (the reference keeps noise_seed)
+            obs = dict(obs, output=dict(obs["output"], noise_seed=obs["output"]["noise_seed"] + min(n["only_nights"])))
+            print(f"[night] only_nights: frame noise seed {obs['output']['noise_seed']}", flush=True)
     shutil.rmtree(out / "hdps", ignore_errors=True)
-    run_engine(obs, out, len(rows), engine_options, reference)
+    run_engine(obs, out, len(rows), engine_options, reference, decoupled=decoupled)
     print(f"done: {out.relative_to(REPO)}/")
 
 

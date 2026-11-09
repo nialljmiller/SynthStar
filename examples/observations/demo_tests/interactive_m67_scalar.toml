@@ -1,0 +1,74 @@
+# Test (2026-10-27, demo + alerts chats): interactive_m67 with CoaddTapTask background_mode = "scalar" (one full-frame
+# median per frame) instead of "regional" (a 256 px mesh, which may take bright stars' halo light out of the
+# reference coadd as sky while the science tile keeps it). Compare with interactive_m67_v4 (regional): 676 hdps
+# candidates, 318 accepted per frame, stars over-subtracted.
+# Interactive field pack: M67, an old open cluster. One real night through hdps, both bands, nothing placed or injected; the
+# movie data saved, every alert candidate kept with its features (the app re-scores them with any model).
+[field]
+name = "interactive_m67"
+ra = 132.825
+dec = 11.8
+block = 9
+
+[night]
+date = "2026-02-17"  # new moon (2026-02-01 was full, the Moon 12 deg from M67: a sky of ~3550 e- per tile pixel above the bright-star mask's threshold, no alert candidate all night)
+nights = 1
+
+[stars]
+background = "m67_field"
+layout = "real"
+
+[image]
+psf_wing = false  # off (2026-10-26): M45 beta, 10 exposures, chi2/px at bright stars in the difference 2.4 without the wing, 7.0 with it to 30 px, 8.2 to 400 px (stars over-subtracted; to 400 px also blotchy background)
+psf_box = 121  # on (2026-10-27): the PSF in a 121 px box, so a bright star's light no longer stops at the 28 px stamp's square edge (the square showed in the exposure and the difference)
+psf_halo = true  # on (2026-10-27): the on-sky halo (H. Corbett) beyond ArgusSim's 14.5 px optics, optics tapered to a circle; as the alerts chat's iter3 (f294: no square, bright-star |diff|/flux as iter2)
+
+[output]
+movie = false
+pipeline_movie = false
+movie_window_px = 0  # the pack keeps the block's tile only (the notebook draws no window mosaic); the window view makes hdps write every tile, 123 MB per frame against 32 MB, ~25-30 GB more at peak for a 310-exposure night
+
+[[hdps.tasks]]
+type = "DataCleanupTask"
+
+[[hdps.tasks]]
+type = "ImageReductionTask"
+
+[[hdps.tasks]]
+type = "SourceDetectionTask"
+
+[[hdps.tasks]]
+type = "SourceFilterTask"
+
+[[hdps.tasks]]
+type = "TrueCalibrationTask"  # the frame's WCS and zero point from the simulation, in place of
+# ReferenceRetrievalTask, LinearWCSSolverTask, SourceMatchingTask and TPVWCSSolverTask (2026-10-26)
+
+[[hdps.tasks]]
+type = "LightweightFITSOutputTask"
+
+[[hdps.tasks]]
+type = "ReprojectionTask"
+
+[[hdps.tasks]]
+type = "CoaddTapTask"
+
+[hdps.tasks.config]
+background_mode = "scalar"  # test: the reference keeps its stars' halos as the science tile does
+
+[[hdps.tasks]]
+type = "SFFTSubtractionTask"
+
+[[hdps.tasks]]
+type = "DiffDetectionTask"
+
+[[hdps.tasks]]
+type = "TransientOutputTask"
+
+[[hdps.tasks]]
+type = "AlertVettingTask"
+[hdps.tasks.config]
+emit_all_candidates = true
+
+[[hdps.tasks]]
+type = "TileImageOutputTask"

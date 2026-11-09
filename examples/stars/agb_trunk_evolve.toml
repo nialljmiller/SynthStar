@@ -1,0 +1,8 @@
+# Evolve -> SAVE: run the AGB trunk (grids/agb_branch.py) through the star queue. This evolves 2 Msun, [M/H] 0 from
+# the pre-main-sequence past core-He burning onto the AGB, stopping at log L/Lsun 3.4 and writing save_model
+# early_agb.mod in its run dir -- the expensive pre-AGB evolution, computed once, that AGB branches load from.
+[[star]]
+name = "agb_trunk_evolve_m2"
+generator = "MESA evolution track"
+grid = "agb_branch"
+track = "M02.00_MH+0.0_a1.98_agb_trunk"

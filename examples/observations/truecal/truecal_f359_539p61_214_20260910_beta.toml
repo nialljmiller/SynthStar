@@ -1,0 +1,87 @@
+# TrueCalibrationTask test (2026-10-26): tpvtest7_f359_539p61_214_20260910_beta (and alert_sample_v1_f359_539p61_214_20260910_mac_beta)
+# with the frame's WCS and zero point from the simulation in place of hdps's solve (ReferenceRetrievalTask,
+# LinearWCSSolverTask, SourceMatchingTask, TPVWCSSolverTask; mesa_argus/true_calibration.py): the same machine (the
+# Mac), seeds and scene, every 10th exposure, so exposure j compares with both. Expected: every exposure reprojected
+# (tpvtest7: 31 of 31, v1 at 17 terms: 14 of 31); photometry on the simulation's AB scale.
+# The Mac's insurance copy of alert_sample_v1_f359_539p61_214_20260910_beta (2026-10-26): the same night's beta half run on the Mac (its own library: a
+# different scene from vega's halves, so a night of its own, alert_sample_v1_f359_539p61_214_20260910_mac, with alert_sample_v1_f359_539p61_214_20260910_mac_rho); shipped only if a vega half
+# fails.
+# The beta half of alert_sample_v1_f359_539p61_214_20260910 (the rho half: alert_sample_v1_f359_539p61_214_20260910_rho.toml): the same night, one band per run so one engine's
+# memory fits (2026-10-25); no seed derives from the name or the bands, so both halves hold the same scene when they
+# run on one machine (the [inject] templates are drawn from that machine's stars/ library). tools/alert_sample.py
+# files the two halves as one night.
+# Alert-broker sample "alert_sample_v1" (tools/alert_sample_nights.py): f359_539p61_214_field on the night of
+# 2026-09-10 (new Moon), as Argus would run it: every exposure, both bands, bright-star mask off (hdps's production
+# config), the real/bogus model data/rb/bundle_v1 loaded at score_cut "fa10". 200 library stars injected over the
+# readout window (a training-style density, far above the variables and transients Argus would see there).
+[field]
+name = "truecal_f359_539p61_214_20260910_beta"
+ra = 359.539
+dec = 61.214
+
+[night]
+date = "2026-09-10"
+nights = 1
+
+[stars]
+background = "f359_539p61_214_field"
+layout = "real"
+
+[inject]
+number = 200
+seed = 1004
+
+[image]
+psf_wing = true  # tested together: the zero point includes the wing's share of the aperture
+
+[output]
+bands = ["beta"]
+movie = false
+pipeline_movie = false
+movie_data = false
+lightcurves = false
+catalogues = false
+stride = 10
+
+[[hdps.tasks]]
+type = "DataCleanupTask"
+
+[[hdps.tasks]]
+type = "ImageReductionTask"
+
+[[hdps.tasks]]
+type = "SourceDetectionTask"
+
+[[hdps.tasks]]
+type = "SourceFilterTask"
+
+[[hdps.tasks]]
+type = "TrueCalibrationTask"  # in place of ReferenceRetrieval, LinearWCSSolver, SourceMatching, TPVWCSSolver
+
+[[hdps.tasks]]
+type = "LightweightFITSOutputTask"
+
+[[hdps.tasks]]
+type = "ReprojectionTask"
+
+[[hdps.tasks]]
+type = "CoaddTapTask"
+
+[[hdps.tasks]]
+type = "SFFTSubtractionTask"
+
+[[hdps.tasks]]
+type = "DiffDetectionTask"
+
+[[hdps.tasks]]
+type = "TransientOutputTask"
+
+[[hdps.tasks]]
+type = "AlertVettingTask"
+[hdps.tasks.config]
+model_bundle = "data/rb/bundle_v1"
+score_cut = "fa10"
+emit_all_candidates = true
+
+[[hdps.tasks]]
+type = "TileImageOutputTask"

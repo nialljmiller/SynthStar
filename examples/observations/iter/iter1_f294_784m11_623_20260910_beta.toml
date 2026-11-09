@@ -1,0 +1,76 @@
+# Alerts fix iteration 1 (2026-10-26): alert_sample_v1_f294_784m11_623_20260910 beta (same field, night, seeds and
+# injected stars) with the three fixes under test: the simulation's WCS and zero point in place of hdps's solve
+# (TrueCalibrationTask, in both the reference and the science pass), the PSF continued past ArgusSim's stamp
+# ([image] psf_wing), and both movies to judge the difference images. v1 beta: 59 of 112 exposures with candidates,
+# 2231 packets, 148 bogus.
+[field]
+name = "iter1_f294_784m11_623_20260910_beta"
+ra = 294.784
+dec = -11.623
+
+[night]
+date = "2026-09-10"
+nights = 1
+
+[stars]
+background = "f294_784m11_623_field"
+layout = "real"
+
+[inject]
+number = 200
+seed = 1000
+
+[image]
+psf_wing = true
+
+[output]
+bands = ["beta"]
+movie = true
+pipeline_movie = true
+movie_data = true
+lightcurves = false
+catalogues = false
+stride = 1
+
+[[hdps.tasks]]
+type = "DataCleanupTask"
+
+[[hdps.tasks]]
+type = "ImageReductionTask"
+
+[[hdps.tasks]]
+type = "SourceDetectionTask"
+
+[[hdps.tasks]]
+type = "SourceFilterTask"
+
+[[hdps.tasks]]
+type = "TrueCalibrationTask"  # in place of ReferenceRetrieval, LinearWCSSolver, SourceMatching, TPVWCSSolver
+
+[[hdps.tasks]]
+type = "LightweightFITSOutputTask"
+
+[[hdps.tasks]]
+type = "ReprojectionTask"
+
+[[hdps.tasks]]
+type = "CoaddTapTask"
+
+[[hdps.tasks]]
+type = "SFFTSubtractionTask"
+
+[[hdps.tasks]]
+type = "DiffDetectionTask"
+
+[[hdps.tasks]]
+type = "TransientOutputTask"
+
+[[hdps.tasks]]
+type = "AlertVettingTask"
+[hdps.tasks.config]
+model_bundle = "data/rb/bundle_v1"
+score_cut = "fa10"
+emit_all_candidates = true
+
+[[hdps.tasks]]
+type = "TileImageOutputTask"

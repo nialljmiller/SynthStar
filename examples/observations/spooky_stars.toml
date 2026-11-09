@@ -1,0 +1,976 @@
+# Spooky stars (user, 2026-10-28): a Halloween field for the live demo. A jack-o-lantern of short-period,
+# high-amplitude variables (W UMa contact binaries and RRc pulsators) among the real stars of f359 (Cassiopeia,
+# b = -1 deg), their magnitudes spread like the field's: the exposure is an ordinary star field, and the
+# jack-o-lantern shows in the difference image. Made by tools/spooky_stars.py (do not edit the [[place]] list by
+# hand: run it again). The settings from [image] on are interactive_m45.toml's.
+
+[field]
+name = "spooky_stars"
+ra = 359.539
+dec = 61.214
+block = 9
+
+[night]
+reference_nights = 5  # as interactive_m45.toml: each telescope's sharpest ratchet of 5 nights
+reference_ratchets = 1
+date = "2027-10-31"  # Halloween with a new Moon (user: no Moon): 8% lit and below the horizon all night at the site; on 2026-10-31 it is 56% lit and up for 6.2 of the 10.2 dark hours
+nights = 1
+
+[stars]
+background = "spooky_stars_field"  # f359's Gaia stars (f359_539p61_214_field) without the 76 brighter than G 14.5 (the jack-o-lantern's brightest) within 300" of the centre (made by tools/spooky_stars.py): their residuals would compete with it in the difference image; those farther out keep each frame's saturated pixels, which give hdps its noise model
+layout = "real"
+
+[image]
+psf_wing = false  # off (2026-10-26): M45 beta, 10 exposures, chi2/px at bright stars in the difference 2.4 without the wing, 7.0 with it to 30 px, 8.2 to 400 px (stars over-subtracted; to 400 px also blotchy background)
+psf_box = 121  # on (2026-10-27): the PSF in a 121 px box, so a bright star's light no longer stops at the 28 px stamp's square edge (the square showed in the exposure and the difference)
+psf_halo = true  # on (2026-10-27): the on-sky halo (H. Corbett) beyond ArgusSim's 14.5 px optics, optics tapered to a circle; as the alerts chat's iter3 (f294: no square, bright-star |diff|/flux as iter2)
+
+[argussim.telescope]
+psf_model = "gaussian"  # (2026-10-27) the Zemax PSF models are under NDA and may not appear in anything public, images drawn with them included (user): ArgusSim's Gaussian spot (spot_size) with the Moffat seeing
+
+[output]
+movie = false
+pipeline_movie = false
+movie_window_px = 0  # the pack keeps the block's tile only (the notebook draws no window mosaic); the window view makes hdps write every tile, 123 MB per frame against 32 MB, ~25-30 GB more at peak for a 310-exposure night
+movie_mask_reference_e = 0  # (2026-10-27) off: the pack keeps hdps's difference images as they are (the engine's grey disc over stars bright in the reference is for the field movies; argus_night_live.pack captures the draw data)
+
+[[hdps.tasks]]
+type = "DataCleanupTask"
+
+[[hdps.tasks]]
+type = "ImageReductionTask"
+
+[[hdps.tasks]]
+type = "SourceDetectionTask"
+
+[[hdps.tasks]]
+type = "SourceFilterTask"
+
+[[hdps.tasks]]
+type = "TrueCalibrationTask"  # the frame's WCS and zero point from the simulation, in place of
+# ReferenceRetrievalTask, LinearWCSSolverTask, SourceMatchingTask and TPVWCSSolverTask (2026-10-26)
+
+[[hdps.tasks]]
+type = "LightweightFITSOutputTask"
+
+[[hdps.tasks]]
+type = "ReprojectionTask"
+
+[[hdps.tasks]]
+type = "CoaddTapTask"
+
+[[hdps.tasks]]
+type = "SFFTSubtractionTask"
+
+[[hdps.tasks]]
+type = "DiffDetectionTask"
+
+[[hdps.tasks]]
+type = "TransientOutputTask"
+
+[[hdps.tasks]]
+type = "AlertVettingTask"
+[hdps.tasks.config]
+emit_all_candidates = true
+
+[[hdps.tasks]]
+type = "TileImageOutputTask"
+
+# The jack-o-lantern: 147 stars 9" apart (each moved up to 2"), x right and y up in percent of the block; mean G 14.5-17.5 through the
+# dust at each star's distance; every star at maximum light 0.14 d after the first exposure (an RRc's
+# epoch is its maximum, a W UMa's its primary eclipse, a quarter period from a maximum). Library stars, no two
+# the same.
+
+# body: 63 stars
+[[place]]
+star = "lib_rrc_p03432_mhm200"  # RRc, P 0.343 d, 0.54 mag; G 14.68 through E(B-V) 0.51
+x = 90.00
+y = 44.78
+epoch = "start+0.1400"
+distance = 3727
+[[place]]
+star = "libnm_contact_7f68cc4a0faabe"  # W UMa, P 0.412 d, 0.57 mag; G 15.81 through E(B-V) 0.31
+x = 88.72
+y = 47.83
+epoch = "start+0.4488"
+distance = 2408
+[[place]]
+star = "libnm_contact_d69a8ee904d025"  # W UMa, P 0.398 d, 0.69 mag; G 16.30 through E(B-V) 0.26
+x = 88.81
+y = 51.67
+epoch = "start+0.4383"
+distance = 1182
+[[place]]
+star = "libnm_contact_24d4c7b1d8ff4a"  # W UMa, P 0.276 d, 0.70 mag; G 17.19 through E(B-V) 0.28
+x = 86.94
+y = 55.57
+epoch = "start+0.3472"
+distance = 1676
+[[place]]
+star = "lib_rrc_p03432_mhm150"  # RRc, P 0.343 d, 0.42 mag; G 16.90 through E(B-V) 0.64
+x = 85.37
+y = 58.61
+epoch = "start+0.1400"
+distance = 8381
+[[place]]
+star = "libnm_contact_c9ef1539553d62"  # W UMa, P 0.375 d, 0.98 mag; G 16.45 through E(B-V) 0.28
+x = 83.48
+y = 61.45
+epoch = "start+0.4211"
+distance = 1604
+[[place]]
+star = "libnm_contact_f68037584a12cc"  # W UMa, P 0.243 d, 0.72 mag; G 14.57 through E(B-V) 0.25
+x = 81.60
+y = 63.37
+epoch = "start+0.3223"
+distance = 861
+[[place]]
+star = "libnm_contact_5b3d07c742e4f2"  # W UMa, P 0.260 d, 0.75 mag; G 16.14 through E(B-V) 0.29
+x = 79.53
+y = 66.69
+epoch = "start+0.3347"
+distance = 1979
+[[place]]
+star = "lib_rrc_p03865_mhm175"  # RRc, P 0.387 d, 0.45 mag; G 14.52 through E(B-V) 0.50
+x = 76.29
+y = 68.69
+epoch = "start+0.1400"
+distance = 3567
+[[place]]
+star = "lib_rrc_p03365_mhm125"  # RRc, P 0.337 d, 0.42 mag; G 17.42 through E(B-V) 0.64
+x = 72.64
+y = 69.46
+epoch = "start+0.1400"
+distance = 10436
+[[place]]
+star = "lib_rrc_p02653_mhm050"  # RRc, P 0.265 d, 0.47 mag; G 16.86 through E(B-V) 0.63
+x = 69.88
+y = 71.58
+epoch = "start+0.1400"
+distance = 7260
+[[place]]
+star = "lib_rrc_p02310_mhm025"  # RRc, P 0.231 d, 0.41 mag; G 17.38 through E(B-V) 0.64
+x = 66.61
+y = 73.12
+epoch = "start+0.1400"
+distance = 8768
+[[place]]
+star = "lib_rrc_p02872_mhm175"  # RRc, P 0.287 d, 0.60 mag; G 15.73 through E(B-V) 0.60
+x = 63.35
+y = 73.67
+epoch = "start+0.1400"
+distance = 5185
+[[place]]
+star = "libnm_contact_6948f7ea916c18"  # W UMa, P 0.323 d, 0.71 mag; G 16.05 through E(B-V) 0.25
+x = 59.83
+y = 73.64
+epoch = "start+0.3825"
+distance = 791
+[[place]]
+star = "lib_rrc_p03432_mhm175"  # RRc, P 0.343 d, 0.48 mag; G 16.66 through E(B-V) 0.63
+x = 56.46
+y = 72.71
+epoch = "start+0.1400"
+distance = 7838
+[[place]]
+star = "libnm_contact_c87faf077a6aae"  # W UMa, P 0.228 d, 0.66 mag; G 14.77 through E(B-V) 0.20
+x = 53.61
+y = 72.45
+epoch = "start+0.3110"
+distance = 536
+[[place]]
+star = "libnm_contact_786bc989b0184c"  # W UMa, P 0.245 d, 0.74 mag; G 16.13 through E(B-V) 0.27
+x = 49.72
+y = 71.20
+epoch = "start+0.3235"
+distance = 1339
+[[place]]
+star = "lib_rrc_p02929_mhm150"  # RRc, P 0.293 d, 0.60 mag; G 17.04 through E(B-V) 0.64
+x = 45.18
+y = 72.87
+epoch = "start+0.1400"
+distance = 8818
+[[place]]
+star = "lib_rrc_p03365_mhm175"  # RRc, P 0.337 d, 0.51 mag; G 15.58 through E(B-V) 0.60
+x = 43.18
+y = 72.67
+epoch = "start+0.1400"
+distance = 4923
+[[place]]
+star = "lib_rrc_p02706_mhm050"  # RRc, P 0.271 d, 0.45 mag; G 17.02 through E(B-V) 0.63
+x = 38.99
+y = 73.87
+epoch = "start+0.1400"
+distance = 7811
+[[place]]
+star = "libnm_contact_186e5ea7c62e91"  # W UMa, P 0.400 d, 0.76 mag; G 14.58 through E(B-V) 0.27
+x = 35.69
+y = 74.22
+epoch = "start+0.4400"
+distance = 1420
+[[place]]
+star = "lib_rrc_p02706_mhm125"  # RRc, P 0.271 d, 0.57 mag; G 17.18 through E(B-V) 0.64
+x = 31.70
+y = 72.05
+epoch = "start+0.1400"
+distance = 9065
+[[place]]
+star = "libnm_contact_1381dd225ca1c8"  # W UMa, P 0.239 d, 0.76 mag; G 15.08 through E(B-V) 0.22
+x = 29.42
+y = 71.44
+epoch = "start+0.3191"
+distance = 693
+[[place]]
+star = "libnm_contact_4b212082ae27e7"  # W UMa, P 0.228 d, 0.90 mag; G 16.71 through E(B-V) 0.29
+x = 26.13
+y = 69.63
+epoch = "start+0.3107"
+distance = 2033
+[[place]]
+star = "lib_rrc_p02761_mhm125"  # RRc, P 0.276 d, 0.58 mag; G 17.40 through E(B-V) 0.64
+x = 22.74
+y = 67.72
+epoch = "start+0.1400"
+distance = 10075
+[[place]]
+star = "lib_rrc_p02550_mhm100"  # RRc, P 0.255 d, 0.54 mag; G 14.84 through E(B-V) 0.50
+x = 20.87
+y = 65.81
+epoch = "start+0.1400"
+distance = 3226
+[[place]]
+star = "lib_rrc_p02706_mhm150"  # RRc, P 0.271 d, 0.51 mag; G 15.42 through E(B-V) 0.58
+x = 17.99
+y = 62.09
+epoch = "start+0.1400"
+distance = 4262
+[[place]]
+star = "libnm_contact_31d6a3147b3e14"  # W UMa, P 0.269 d, 0.61 mag; G 17.15 through E(B-V) 0.29
+x = 15.50
+y = 60.37
+epoch = "start+0.3414"
+distance = 1978
+[[place]]
+star = "lib_rrc_p02653_mhm025"  # RRc, P 0.265 d, 0.41 mag; G 15.94 through E(B-V) 0.59
+x = 13.41
+y = 57.42
+epoch = "start+0.1400"
+distance = 4805
+[[place]]
+star = "lib_rrc_p02706_mhm100"  # RRc, P 0.271 d, 0.56 mag; G 15.93 through E(B-V) 0.60
+x = 11.36
+y = 54.05
+epoch = "start+0.1400"
+distance = 5159
+[[place]]
+star = "lib_rrc_p02550_mhm075"  # RRc, P 0.255 d, 0.54 mag; G 16.12 through E(B-V) 0.61
+x = 10.75
+y = 49.60
+epoch = "start+0.1400"
+distance = 5385
+[[place]]
+star = "lib_rrc_p03501_mhm125"  # RRc, P 0.350 d, 0.42 mag; G 17.09 through E(B-V) 0.64
+x = 10.85
+y = 47.43
+epoch = "start+0.1400"
+distance = 9253
+[[place]]
+star = "libnm_contact_407c0b6c142df3"  # W UMa, P 0.283 d, 0.96 mag; G 14.95 through E(B-V) 0.25
+x = 10.82
+y = 43.28
+epoch = "start+0.3523"
+distance = 842
+[[place]]
+star = "lib_rrc_p03234_mhm175"  # RRc, P 0.323 d, 0.55 mag; G 15.95 through E(B-V) 0.62
+x = 11.30
+y = 39.21
+epoch = "start+0.1400"
+distance = 5681
+[[place]]
+star = "libnm_contact_07e1382d281e8c"  # W UMa, P 0.410 d, 0.64 mag; G 15.29 through E(B-V) 0.28
+x = 12.53
+y = 36.44
+epoch = "start+0.4471"
+distance = 1564
+[[place]]
+star = "lib_rrc_p02872_mhm100"  # RRc, P 0.287 d, 0.51 mag; G 16.92 through E(B-V) 0.63
+x = 13.55
+y = 32.67
+epoch = "start+0.1400"
+distance = 7951
+[[place]]
+star = "lib_rrc_p03571_mhm200"  # RRc, P 0.357 d, 0.50 mag; G 15.70 through E(B-V) 0.61
+x = 14.75
+y = 30.08
+epoch = "start+0.1400"
+distance = 5297
+[[place]]
+star = "lib_rrc_p02265_mhm075"  # RRc, P 0.226 d, 0.44 mag; G 15.20 through E(B-V) 0.51
+x = 16.40
+y = 26.19
+epoch = "start+0.1400"
+distance = 3845
+[[place]]
+star = "lib_rrc_p03171_mhm175"  # RRc, P 0.317 d, 0.57 mag; G 16.89 through E(B-V) 0.64
+x = 20.15
+y = 24.36
+epoch = "start+0.1400"
+distance = 8546
+[[place]]
+star = "libnm_contact_e8a11c43a142b5"  # W UMa, P 0.365 d, 0.61 mag; G 17.16 through E(B-V) 0.53
+x = 22.13
+y = 22.46
+epoch = "start+0.4139"
+distance = 4127
+[[place]]
+star = "lib_rrc_p02988_mhm100"  # RRc, P 0.299 d, 0.41 mag; G 15.70 through E(B-V) 0.59
+x = 25.81
+y = 20.22
+epoch = "start+0.1400"
+distance = 4658
+[[place]]
+star = "libnm_contact_df67bfec10a05e"  # W UMa, P 0.371 d, 0.60 mag; G 17.58 through E(B-V) 0.48
+x = 28.01
+y = 17.81
+epoch = "start+0.4186"
+distance = 2972
+[[place]]
+star = "libnm_contact_0d4ec81f72ae2c"  # W UMa, P 0.363 d, 0.75 mag; G 15.28 through E(B-V) 0.25
+x = 31.91
+y = 17.16
+epoch = "start+0.4120"
+distance = 747
+[[place]]
+star = "lib_rrc_p03501_mhm150"  # RRc, P 0.350 d, 0.49 mag; G 15.25 through E(B-V) 0.57
+x = 34.03
+y = 15.79
+epoch = "start+0.1400"
+distance = 4162
+[[place]]
+star = "lib_rrc_p03365_mhm150"  # RRc, P 0.337 d, 0.45 mag; G 15.65 through E(B-V) 0.60
+x = 38.53
+y = 14.45
+epoch = "start+0.1400"
+distance = 4927
+[[place]]
+star = "libnm_contact_c37f00f9c8b71c"  # W UMa, P 0.288 d, 0.52 mag; G 16.36 through E(B-V) 0.26
+x = 42.13
+y = 14.87
+epoch = "start+0.3558"
+distance = 1202
+[[place]]
+star = "lib_rrc_p03642_mhm200"  # RRc, P 0.364 d, 0.47 mag; G 17.21 through E(B-V) 0.64
+x = 45.05
+y = 15.01
+epoch = "start+0.1400"
+distance = 10289
+[[place]]
+star = "lib_rrc_p02872_mhm075"  # RRc, P 0.287 d, 0.45 mag; G 15.61 through E(B-V) 0.58
+x = 49.51
+y = 15.66
+epoch = "start+0.1400"
+distance = 4489
+[[place]]
+star = "libnm_contact_93227554f862f3"  # W UMa, P 0.243 d, 0.65 mag; G 15.03 through E(B-V) 0.25
+x = 52.82
+y = 15.27
+epoch = "start+0.3226"
+distance = 907
+[[place]]
+star = "libnm_contact_f6a08d5df22fb9"  # W UMa, P 0.377 d, 0.98 mag; G 16.15 through E(B-V) 0.40
+x = 56.72
+y = 14.68
+epoch = "start+0.4229"
+distance = 2969
+[[place]]
+star = "lib_rrc_p02451_mhm100"  # RRc, P 0.245 d, 0.41 mag; G 17.32 through E(B-V) 0.64
+x = 60.25
+y = 15.28
+epoch = "start+0.1400"
+distance = 9334
+[[place]]
+star = "libnm_contact_4ab54916441c33"  # W UMa, P 0.303 d, 0.55 mag; G 15.86 through E(B-V) 0.25
+x = 63.76
+y = 15.21
+epoch = "start+0.3676"
+distance = 782
+[[place]]
+star = "lib_rrc_p02653_mhm125"  # RRc, P 0.265 d, 0.55 mag; G 15.33 through E(B-V) 0.55
+x = 66.73
+y = 16.53
+epoch = "start+0.1400"
+distance = 4226
+[[place]]
+star = "libnm_contact_fcc672a5b1c73d"  # W UMa, P 0.409 d, 0.63 mag; G 15.04 through E(B-V) 0.27
+x = 70.01
+y = 16.52
+epoch = "start+0.4467"
+distance = 1256
+[[place]]
+star = "libnm_contact_2528432a6bc2a2"  # W UMa, P 0.293 d, 0.53 mag; G 15.12 through E(B-V) 0.28
+x = 72.39
+y = 18.45
+epoch = "start+0.3601"
+distance = 1523
+[[place]]
+star = "lib_rrc_p03048_mhm100"  # RRc, P 0.305 d, 0.44 mag; G 14.83 through E(B-V) 0.50
+x = 76.60
+y = 20.45
+epoch = "start+0.1400"
+distance = 3529
+[[place]]
+star = "libnm_contact_a8d15653a80490"  # W UMa, P 0.330 d, 0.91 mag; G 15.61 through E(B-V) 0.25
+x = 78.31
+y = 23.52
+epoch = "start+0.3872"
+distance = 838
+[[place]]
+star = "libnm_contact_8442993ae044e3"  # W UMa, P 0.231 d, 0.74 mag; G 15.37 through E(B-V) 0.22
+x = 81.94
+y = 25.00
+epoch = "start+0.3136"
+distance = 574
+[[place]]
+star = "lib_rrc_p03234_mhm150"  # RRc, P 0.323 d, 0.50 mag; G 17.26 through E(B-V) 0.64
+x = 84.24
+y = 27.60
+epoch = "start+0.1400"
+distance = 9832
+[[place]]
+star = "libnm_contact_bb1dc19919149f"  # W UMa, P 0.249 d, 1.06 mag; G 16.50 through E(B-V) 0.28
+x = 85.91
+y = 30.32
+epoch = "start+0.3265"
+distance = 1787
+[[place]]
+star = "lib_rrc_p04022_mhm175"  # RRc, P 0.402 d, 0.42 mag; G 16.51 through E(B-V) 0.63
+x = 87.49
+y = 33.93
+epoch = "start+0.1400"
+distance = 7698
+[[place]]
+star = "lib_rrc_p02403_mhm075"  # RRc, P 0.240 d, 0.45 mag; G 17.44 through E(B-V) 0.64
+x = 87.91
+y = 37.60
+epoch = "start+0.1400"
+distance = 9548
+[[place]]
+star = "lib_rrc_p03365_mhm100"  # RRc, P 0.337 d, 0.40 mag; G 16.00 through E(B-V) 0.62
+x = 88.51
+y = 41.26
+epoch = "start+0.1400"
+distance = 5560
+
+# stem: 6 stars
+[[place]]
+star = "libnm_contact_0ac48b001496af"  # W UMa, P 0.226 d, 0.69 mag; G 14.58 through E(B-V) 0.22
+x = 48.24
+y = 71.72
+epoch = "start+0.3095"
+distance = 632
+[[place]]
+star = "libnm_contact_148f21f75dcf20"  # W UMa, P 0.301 d, 0.83 mag; G 15.00 through E(B-V) 0.25
+x = 48.51
+y = 76.90
+epoch = "start+0.3656"
+distance = 882
+[[place]]
+star = "lib_rrc_p03501_mhm200"  # RRc, P 0.350 d, 0.52 mag; G 15.45 through E(B-V) 0.59
+x = 51.68
+y = 81.46
+epoch = "start+0.1400"
+distance = 4808
+[[place]]
+star = "lib_rrc_p03109_mhm100"  # RRc, P 0.311 d, 0.41 mag; G 14.67 through E(B-V) 0.48
+x = 52.83
+y = 71.49
+epoch = "start+0.1400"
+distance = 3134
+[[place]]
+star = "lib_rrc_p03109_mhm175"  # RRc, P 0.311 d, 0.59 mag; G 15.48 through E(B-V) 0.59
+x = 53.13
+y = 75.98
+epoch = "start+0.1400"
+distance = 4711
+[[place]]
+star = "lib_rrc_p03365_mhm200"  # RRc, P 0.337 d, 0.56 mag; G 15.39 through E(B-V) 0.59
+x = 55.23
+y = 79.74
+epoch = "start+0.1400"
+distance = 4702
+
+# left eye: 15 stars
+[[place]]
+star = "lib_rrc_p03171_mhm125"  # RRc, P 0.317 d, 0.46 mag; G 15.18 through E(B-V) 0.53
+x = 27.41
+y = 51.60
+epoch = "start+0.1400"
+distance = 4159
+[[place]]
+star = "libnm_contact_bfbf55e3a13482"  # W UMa, P 0.274 d, 0.99 mag; G 15.43 through E(B-V) 0.26
+x = 30.36
+y = 52.74
+epoch = "start+0.3453"
+distance = 1178
+[[place]]
+star = "lib_rrc_p03299_mhm175"  # RRc, P 0.330 d, 0.53 mag; G 15.53 through E(B-V) 0.60
+x = 34.18
+y = 52.00
+epoch = "start+0.1400"
+distance = 4816
+[[place]]
+star = "lib_rrc_p02988_mhm175"  # RRc, P 0.299 d, 0.63 mag; G 16.68 through E(B-V) 0.63
+x = 38.55
+y = 53.09
+epoch = "start+0.1400"
+distance = 7812
+[[place]]
+star = "lib_rrc_p02220_mhm050"  # RRc, P 0.222 d, 0.45 mag; G 15.45 through E(B-V) 0.53
+x = 41.02
+y = 52.08
+epoch = "start+0.1400"
+distance = 4123
+[[place]]
+star = "libnm_contact_f49701cb368af8"  # W UMa, P 0.415 d, 1.13 mag; G 14.55 through E(B-V) 0.29
+x = 39.02
+y = 55.40
+epoch = "start+0.4516"
+distance = 2086
+[[place]]
+star = "lib_rrc_p02356_mhm025"  # RRc, P 0.236 d, 0.45 mag; G 16.76 through E(B-V) 0.63
+x = 37.89
+y = 58.82
+epoch = "start+0.1400"
+distance = 6684
+[[place]]
+star = "libnm_contact_04d43e4d614823"  # W UMa, P 0.254 d, 0.69 mag; G 15.89 through E(B-V) 0.25
+x = 35.24
+y = 61.69
+epoch = "start+0.3305"
+distance = 760
+[[place]]
+star = "libnm_contact_df232c1ff691c0"  # W UMa, P 0.251 d, 0.63 mag; G 17.45 through E(B-V) 0.28
+x = 33.63
+y = 65.21
+epoch = "start+0.3281"
+distance = 1786
+[[place]]
+star = "lib_rrc_p02653_mhm075"  # RRc, P 0.265 d, 0.52 mag; G 14.76 through E(B-V) 0.48
+x = 32.07
+y = 61.47
+epoch = "start+0.1400"
+distance = 3020
+[[place]]
+star = "lib_rrc_p02451_mhm025"  # RRc, P 0.245 d, 0.47 mag; G 16.71 through E(B-V) 0.63
+x = 29.97
+y = 59.08
+epoch = "start+0.1400"
+distance = 6571
+[[place]]
+star = "lib_rrc_p03048_mhm150"  # RRc, P 0.305 d, 0.56 mag; G 17.33 through E(B-V) 0.64
+x = 29.28
+y = 55.46
+epoch = "start+0.1400"
+distance = 10107
+[[place]]
+star = "libnm_contact_4d07c129c63fb3"  # W UMa, P 0.417 d, 0.86 mag; G 15.53 through E(B-V) 0.29
+x = 33.01
+y = 54.98
+epoch = "start+0.4531"
+distance = 2039
+[[place]]
+star = "libnm_contact_a410bbc954b70a"  # W UMa, P 0.225 d, 0.94 mag; G 16.10 through E(B-V) 0.23
+x = 35.83
+y = 55.32
+epoch = "start+0.3087"
+distance = 718
+[[place]]
+star = "lib_rrc_p02872_mhm150"  # RRc, P 0.287 d, 0.60 mag; G 16.52 through E(B-V) 0.63
+x = 34.27
+y = 57.74
+epoch = "start+0.1400"
+distance = 7015
+
+# right eye: 15 stars
+[[place]]
+star = "lib_rrc_p02356_mhp000"  # RRc, P 0.236 d, 0.41 mag; G 15.09 through E(B-V) 0.50
+x = 72.61
+y = 52.41
+epoch = "start+0.1400"
+distance = 3206
+[[place]]
+star = "libnm_contact_5628698225c420"  # W UMa, P 0.257 d, 0.62 mag; G 15.43 through E(B-V) 0.26
+x = 69.96
+y = 51.71
+epoch = "start+0.3327"
+distance = 1197
+[[place]]
+star = "lib_rrc_p02451_mhp000"  # RRc, P 0.245 d, 0.42 mag; G 17.12 through E(B-V) 0.63
+x = 65.03
+y = 52.27
+epoch = "start+0.1400"
+distance = 7707
+[[place]]
+star = "libnm_contact_5226a518861a40"  # W UMa, P 0.288 d, 0.72 mag; G 14.79 through E(B-V) 0.20
+x = 61.35
+y = 52.72
+epoch = "start+0.3562"
+distance = 454
+[[place]]
+star = "lib_rrc_p02988_mhm150"  # RRc, P 0.299 d, 0.58 mag; G 16.09 through E(B-V) 0.62
+x = 58.64
+y = 51.84
+epoch = "start+0.1400"
+distance = 5844
+[[place]]
+star = "lib_rrc_p02929_mhm125"  # RRc, P 0.293 d, 0.54 mag; G 14.86 through E(B-V) 0.51
+x = 60.82
+y = 56.17
+epoch = "start+0.1400"
+distance = 3671
+[[place]]
+star = "lib_rrc_p03571_mhm175"  # RRc, P 0.357 d, 0.43 mag; G 15.77 through E(B-V) 0.61
+x = 62.14
+y = 58.49
+epoch = "start+0.1400"
+distance = 5256
+[[place]]
+star = "lib_rrc_p02929_mhm100"  # RRc, P 0.293 d, 0.49 mag; G 16.67 through E(B-V) 0.63
+x = 63.98
+y = 61.47
+epoch = "start+0.1400"
+distance = 7100
+[[place]]
+star = "libnm_contact_4641e09fcf3336"  # W UMa, P 0.319 d, 0.54 mag; G 15.75 through E(B-V) 0.28
+x = 66.59
+y = 64.63
+epoch = "start+0.3795"
+distance = 1480
+[[place]]
+star = "libnm_contact_e9e6e0f9d0b6b9"  # W UMa, P 0.241 d, 0.61 mag; G 16.49 through E(B-V) 0.27
+x = 68.22
+y = 62.18
+epoch = "start+0.3210"
+distance = 1282
+[[place]]
+star = "lib_rrc_p03171_mhm200"  # RRc, P 0.317 d, 0.63 mag; G 16.57 through E(B-V) 0.63
+x = 69.76
+y = 58.07
+epoch = "start+0.1400"
+distance = 7697
+[[place]]
+star = "lib_rrc_p02872_mhm125"  # RRc, P 0.287 d, 0.56 mag; G 15.85 through E(B-V) 0.60
+x = 70.75
+y = 55.81
+epoch = "start+0.1400"
+distance = 5162
+[[place]]
+star = "lib_rrc_p02601_mhm050"  # RRc, P 0.260 d, 0.49 mag; G 14.84 through E(B-V) 0.48
+x = 64.72
+y = 55.87
+epoch = "start+0.1400"
+distance = 3176
+[[place]]
+star = "lib_rrc_p02134_mhm050"  # RRc, P 0.213 d, 0.51 mag; G 15.00 through E(B-V) 0.48
+x = 66.89
+y = 56.19
+epoch = "start+0.1400"
+distance = 3456
+[[place]]
+star = "lib_rrc_p02550_mhm025"  # RRc, P 0.255 d, 0.45 mag; G 15.37 through E(B-V) 0.52
+x = 65.91
+y = 57.90
+epoch = "start+0.1400"
+distance = 4006
+
+# nose: 7 stars
+[[place]]
+star = "lib_rrc_p02177_mhm025"  # RRc, P 0.218 d, 0.41 mag; G 15.53 through E(B-V) 0.53
+x = 45.88
+y = 43.77
+epoch = "start+0.1400"
+distance = 4148
+[[place]]
+star = "libnm_contact_8b5b6647fe5cd6"  # W UMa, P 0.387 d, 0.64 mag; G 16.25 through E(B-V) 0.26
+x = 48.93
+y = 44.42
+epoch = "start+0.4299"
+distance = 1106
+[[place]]
+star = "lib_rrc_p03715_mhm200"  # RRc, P 0.372 d, 0.44 mag; G 14.84 through E(B-V) 0.52
+x = 52.59
+y = 43.90
+epoch = "start+0.1400"
+distance = 3959
+[[place]]
+star = "libnm_contact_5710732ae45b9e"  # W UMa, P 0.385 d, 0.56 mag; G 16.29 through E(B-V) 0.47
+x = 52.50
+y = 46.98
+epoch = "start+0.4287"
+distance = 2934
+[[place]]
+star = "libnm_contact_3ed51ce03c4dbf"  # W UMa, P 0.399 d, 0.53 mag; G 14.59 through E(B-V) 0.22
+x = 51.25
+y = 49.18
+epoch = "start+0.4396"
+distance = 628
+[[place]]
+star = "lib_rrc_p03171_mhm150"  # RRc, P 0.317 d, 0.52 mag; G 16.33 through E(B-V) 0.62
+x = 49.79
+y = 51.49
+epoch = "start+0.1400"
+distance = 6519
+[[place]]
+star = "lib_rrc_p02601_mhm025"  # RRc, P 0.260 d, 0.43 mag; G 14.88 through E(B-V) 0.48
+x = 47.17
+y = 47.44
+epoch = "start+0.1400"
+distance = 3126
+
+# mouth: 41 stars
+[[place]]
+star = "lib_rrc_p02761_mhm150"  # RRc, P 0.276 d, 0.57 mag; G 17.13 through E(B-V) 0.64
+x = 24.21
+y = 40.47
+epoch = "start+0.1400"
+distance = 9162
+[[place]]
+star = "libnm_contact_46a7e42cc23ac6"  # W UMa, P 0.326 d, 0.91 mag; G 17.43 through E(B-V) 0.51
+x = 28.03
+y = 38.79
+epoch = "start+0.3843"
+distance = 3882
+[[place]]
+star = "libnm_contact_c188d91801c509"  # W UMa, P 0.310 d, 0.72 mag; G 16.29 through E(B-V) 0.37
+x = 32.10
+y = 37.65
+epoch = "start+0.3725"
+distance = 2938
+[[place]]
+star = "libnm_contact_286ae3d5a9c033"  # W UMa, P 0.267 d, 0.77 mag; G 15.87 through E(B-V) 0.28
+x = 35.22
+y = 36.24
+epoch = "start+0.3400"
+distance = 1622
+[[place]]
+star = "lib_rrc_p02550_mhm125"  # RRc, P 0.255 d, 0.41 mag; G 17.00 through E(B-V) 0.63
+x = 38.76
+y = 36.43
+epoch = "start+0.1400"
+distance = 8333
+[[place]]
+star = "lib_rrc_p02500_mhm025"  # RRc, P 0.250 d, 0.46 mag; G 15.49 through E(B-V) 0.53
+x = 37.69
+y = 33.26
+epoch = "start+0.1400"
+distance = 4194
+[[place]]
+star = "libnm_contact_9ecc98153e7df4"  # W UMa, P 0.295 d, 0.73 mag; G 16.58 through E(B-V) 0.29
+x = 40.98
+y = 33.18
+epoch = "start+0.3610"
+distance = 2088
+[[place]]
+star = "lib_rrc_p02929_mhm075"  # RRc, P 0.293 d, 0.42 mag; G 16.87 through E(B-V) 0.63
+x = 42.27
+y = 34.58
+epoch = "start+0.1400"
+distance = 7538
+[[place]]
+star = "lib_rrc_p02500_mhm100"  # RRc, P 0.250 d, 0.49 mag; G 16.03 through E(B-V) 0.61
+x = 45.34
+y = 35.96
+epoch = "start+0.1400"
+distance = 5269
+[[place]]
+star = "lib_rrc_p02816_mhm100"  # RRc, P 0.282 d, 0.53 mag; G 15.71 through E(B-V) 0.59
+x = 49.25
+y = 35.46
+epoch = "start+0.1400"
+distance = 4740
+[[place]]
+star = "lib_rrc_p03299_mhm150"  # RRc, P 0.330 d, 0.41 mag; G 15.06 through E(B-V) 0.52
+x = 52.29
+y = 36.33
+epoch = "start+0.1400"
+distance = 4002
+[[place]]
+star = "lib_rrc_p03234_mhm200"  # RRc, P 0.323 d, 0.61 mag; G 15.36 through E(B-V) 0.59
+x = 53.85
+y = 32.42
+epoch = "start+0.1400"
+distance = 4636
+[[place]]
+star = "libnm_contact_f638bfaffd98bd"  # W UMa, P 0.313 d, 0.80 mag; G 15.21 through E(B-V) 0.28
+x = 56.14
+y = 31.99
+epoch = "start+0.3746"
+distance = 1440
+[[place]]
+star = "libnm_contact_f47aa86df94aab"  # W UMa, P 0.345 d, 0.77 mag; G 17.51 through E(B-V) 0.48
+x = 58.68
+y = 33.80
+epoch = "start+0.3990"
+distance = 2999
+[[place]]
+star = "libnm_contact_63d7403a01365b"  # W UMa, P 0.382 d, 0.93 mag; G 17.57 through E(B-V) 0.48
+x = 59.54
+y = 36.19
+epoch = "start+0.4262"
+distance = 3064
+[[place]]
+star = "libnm_contact_681060ad50b436"  # W UMa, P 0.261 d, 0.58 mag; G 17.29 through E(B-V) 0.28
+x = 63.31
+y = 36.89
+epoch = "start+0.3359"
+distance = 1811
+[[place]]
+star = "lib_rrc_p03642_mhm175"  # RRc, P 0.364 d, 0.50 mag; G 16.92 through E(B-V) 0.64
+x = 66.36
+y = 36.67
+epoch = "start+0.1400"
+distance = 9136
+[[place]]
+star = "lib_rrc_p03109_mhm125"  # RRc, P 0.311 d, 0.48 mag; G 14.82 through E(B-V) 0.50
+x = 69.47
+y = 38.12
+epoch = "start+0.1400"
+distance = 3627
+[[place]]
+star = "lib_rrc_p03501_mhm175"  # RRc, P 0.350 d, 0.46 mag; G 16.58 through E(B-V) 0.63
+x = 72.60
+y = 38.39
+epoch = "start+0.1400"
+distance = 7553
+[[place]]
+star = "lib_rrc_p02929_mhm175"  # RRc, P 0.293 d, 0.63 mag; G 17.05 through E(B-V) 0.64
+x = 75.23
+y = 38.47
+epoch = "start+0.1400"
+distance = 9141
+[[place]]
+star = "lib_rrc_p02816_mhm150"  # RRc, P 0.282 d, 0.60 mag; G 16.99 through E(B-V) 0.64
+x = 72.85
+y = 36.36
+epoch = "start+0.1400"
+distance = 8590
+[[place]]
+star = "lib_rrc_p02653_mhm150"  # RRc, P 0.265 d, 0.42 mag; G 15.04 through E(B-V) 0.52
+x = 69.65
+y = 34.06
+epoch = "start+0.1400"
+distance = 4006
+[[place]]
+star = "libnm_contact_eb99d812fde27e"  # W UMa, P 0.358 d, 0.52 mag; G 14.86 through E(B-V) 0.28
+x = 67.90
+y = 31.10
+epoch = "start+0.4088"
+distance = 1543
+[[place]]
+star = "lib_rrc_p02601_mhm075"  # RRc, P 0.260 d, 0.54 mag; G 15.18 through E(B-V) 0.51
+x = 65.30
+y = 28.89
+epoch = "start+0.1400"
+distance = 3928
+[[place]]
+star = "lib_rrc_p02451_mhm050"  # RRc, P 0.245 d, 0.51 mag; G 15.71 through E(B-V) 0.58
+x = 61.43
+y = 26.70
+epoch = "start+0.1400"
+distance = 4505
+[[place]]
+star = "lib_rrc_p02500_mhp000"  # RRc, P 0.250 d, 0.41 mag; G 15.53 through E(B-V) 0.53
+x = 58.90
+y = 25.42
+epoch = "start+0.1400"
+distance = 4174
+[[place]]
+star = "lib_rrc_p02816_mhm075"  # RRc, P 0.282 d, 0.47 mag; G 15.86 through E(B-V) 0.60
+x = 54.31
+y = 25.50
+epoch = "start+0.1400"
+distance = 4897
+[[place]]
+star = "libnm_contact_ad2b81d53e056e"  # W UMa, P 0.374 d, 0.76 mag; G 16.32 through E(B-V) 0.36
+x = 51.99
+y = 24.71
+epoch = "start+0.4204"
+distance = 2793
+[[place]]
+star = "lib_rrc_p02356_mhm050"  # RRc, P 0.236 d, 0.45 mag; G 15.70 through E(B-V) 0.58
+x = 48.35
+y = 25.24
+epoch = "start+0.1400"
+distance = 4482
+[[place]]
+star = "libnm_contact_fc8513c1d67e66"  # W UMa, P 0.332 d, 0.69 mag; G 16.18 through E(B-V) 0.41
+x = 44.73
+y = 25.78
+epoch = "start+0.3887"
+distance = 3027
+[[place]]
+star = "lib_rrc_p02451_mhm075"  # RRc, P 0.245 d, 0.50 mag; G 15.28 through E(B-V) 0.52
+x = 41.10
+y = 26.89
+epoch = "start+0.1400"
+distance = 4050
+[[place]]
+star = "lib_rrc_p03715_mhm175"  # RRc, P 0.372 d, 0.44 mag; G 16.53 through E(B-V) 0.63
+x = 37.45
+y = 28.59
+epoch = "start+0.1400"
+distance = 7586
+[[place]]
+star = "lib_rrc_p02550_mhm050"  # RRc, P 0.255 d, 0.50 mag; G 15.01 through E(B-V) 0.50
+x = 34.70
+y = 30.05
+epoch = "start+0.1400"
+distance = 3575
+[[place]]
+star = "lib_rrc_p03234_mhm125"  # RRc, P 0.323 d, 0.43 mag; G 15.90 through E(B-V) 0.61
+x = 31.84
+y = 32.02
+epoch = "start+0.1400"
+distance = 5256
+[[place]]
+star = "libnm_contact_5ff2bce1f384c5"  # W UMa, P 0.303 d, 0.92 mag; G 16.51 through E(B-V) 0.31
+x = 28.91
+y = 34.95
+epoch = "start+0.3670"
+distance = 2501
+[[place]]
+star = "libnm_contact_6d8a5ade4d5ef0"  # W UMa, P 0.335 d, 0.65 mag; G 17.10 through E(B-V) 0.36
+x = 27.17
+y = 36.68
+epoch = "start+0.3912"
+distance = 2845
+[[place]]
+star = "libnm_contact_06c370c4164c15"  # W UMa, P 0.284 d, 0.65 mag; G 14.96 through E(B-V) 0.28
+x = 52.00
+y = 27.12
+epoch = "start+0.3532"
+distance = 1474
+[[place]]
+star = "lib_rrc_p02403_mhp000"  # RRc, P 0.240 d, 0.42 mag; G 14.95 through E(B-V) 0.48
+x = 46.44
+y = 30.81
+epoch = "start+0.1400"
+distance = 3052
+[[place]]
+star = "lib_rrc_p02761_mhm050"  # RRc, P 0.276 d, 0.43 mag; G 16.90 through E(B-V) 0.63
+x = 49.51
+y = 30.09
+epoch = "start+0.1400"
+distance = 7423
+[[place]]
+star = "lib_rrc_p02706_mhm075"  # RRc, P 0.271 d, 0.51 mag; G 16.70 through E(B-V) 0.63
+x = 60.42
+y = 31.49
+epoch = "start+0.1400"
+distance = 6933
+[[place]]
+star = "lib_rrc_p03109_mhm150"  # RRc, P 0.311 d, 0.54 mag; G 14.58 through E(B-V) 0.48
+x = 33.77
+y = 33.82
+epoch = "start+0.1400"
+distance = 3449

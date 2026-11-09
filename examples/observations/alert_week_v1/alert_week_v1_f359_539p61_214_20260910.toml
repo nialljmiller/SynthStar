@@ -1,0 +1,82 @@
+# Alert week v1 (2026-10-29): f359 (held out: never in training) for 7 consecutive nights from 2026-09-10, both bands,
+# every exposure; the alert sample v3's settings otherwise (injection seed 1004, references from the 5 nights before,
+# each telescope's best-seeing ratchet). Real/bogus model data/rb/bundle_v4 (the final rb4 model), score_cut fa10;
+# every candidate in alerts.csv, packets for the accepted. Run split by night and band across machines:
+#   observe.py <this file> --bands beta --set night.only_nights=[k] --name alert_week_v1_f359_539p61_214_20260910_n<k>_beta
+# ([night] only_nights: each run makes the whole week's scene and reference and observes night k only).
+[field]
+name = "alert_week_v1_f359_539p61_214_20260910"
+ra = 359.539
+dec = 61.214
+
+[night]
+date = "2026-09-10"
+nights = 7
+reference_nights = 5
+reference_ratchets = 1
+
+[stars]
+background = "f359_539p61_214_field"
+layout = "real"
+photometry_workers = 8  # forked (Linux): newton and vega; the results do not depend on it
+
+[inject]
+number = 200
+seed = 1004
+
+[image]
+psf_box = 121
+psf_halo = true
+psf_seeing_step = 0.02
+
+[output]
+bands = ["beta", "rho"]
+movie = false
+pipeline_movie = false
+movie_data = false
+movie_window_px = 0
+lightcurves = false
+stride = 1
+
+[[hdps.tasks]]
+type = "DataCleanupTask"
+
+[[hdps.tasks]]
+type = "ImageReductionTask"
+
+[[hdps.tasks]]
+type = "SourceDetectionTask"
+
+[[hdps.tasks]]
+type = "SourceFilterTask"
+
+[[hdps.tasks]]
+type = "TrueCalibrationTask"
+
+[[hdps.tasks]]
+type = "LightweightFITSOutputTask"
+
+[[hdps.tasks]]
+type = "ReprojectionTask"
+
+[[hdps.tasks]]
+type = "CoaddTapTask"
+
+[[hdps.tasks]]
+type = "SFFTSubtractionTask"
+
+[[hdps.tasks]]
+type = "DiffDetectionTask"
+
+[[hdps.tasks]]
+type = "TransientOutputTask"
+
+[[hdps.tasks]]
+type = "AlertVettingTask"
+[hdps.tasks.config]
+model_bundle = "data/rb/bundle_v4"
+score_cut = "fa10"
+emit_all_candidates = true
+
+[[hdps.tasks]]
+type = "TileImageOutputTask"

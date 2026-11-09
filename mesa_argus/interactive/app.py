@@ -26,7 +26,23 @@ from mesa_argus.interactive.worker import Workers, quiet_argus_sim
 quiet_argus_sim()
 
 FIELD_NAMES = {"m3": "M3 (globular cluster)", "m67": "M67 (old open cluster)", "m45": "M45, the Pleiades (young open cluster)",
+               "m45stamp": "M45, the Pleiades: ArgusSim's 28 px PSF stamp, no halo (for comparison)",
+               "m67stamp": "M67: ArgusSim's 28 px PSF stamp, no halo (for comparison)",
+               "m3stamp": "M3: ArgusSim's 28 px PSF stamp, no halo (for comparison)",
                "f294test": "f294, test field (injected stars)"}  # the field dropdown's order
+# Star E's starting place per field (arcsec from the block centre): hdps's detector takes the mean of a 13-22" annulus
+# as a source's background, so a bright star there makes E faint, and a bright star's difference residual under E
+# makes the real/bogus model reject it. 2026-10-27, 16.5 mag RRab / 15 mag supernova accepted under bundle_v1 (fa10):
+# M45 detected 11/11 (-0.15 mag) / 11 of 11; M67 8/8 (-0.11) / 6 of 8 (at (30, -20) 0/8 detected, 4" from a 12.5 mag
+# star; at (36, -26) -0.33 mag, 0 of 8 on that star's residual; (60, 80) as good but under the panel's label); M3 9/9
+# (+0.48, crowding) / 1 of 9 (the least crowded spot within 100" of the core; at (30, -20) 0/10 detected; no spot
+# tried in M3 above 1 of 9)
+E_HOME = {"m3": (98.0, -86.0), "m67": (38.0, -66.0), "m45": (30.0, -20.0)}
+
+
+def home(field):
+    """Star E's starting place in a field (its pack variants share it)."""
+    return list(next((xy for k, xy in E_HOME.items() if field.startswith(k)), (30.0, -20.0)))
 BANDS = (("β", "beta"), ("ρ", "rho"))
 WORDS = {  # each type's slider names: magnitude, amplitude, period/timescale
     "periodic": ("Mean mag", "Amplitude", "Period (d)"),
@@ -34,21 +50,41 @@ WORDS = {  # each type's slider names: magnitude, amplitude, period/timescale
     "supernova (Ia)": ("Peak mag", "Amplitude", "Timescale (×)"),
     "microlensing": ("Baseline mag", "Peak gain (mag)", "t_E (d)"),
 }
-def stand_ins(masked):
-    """The note under the controls; masked: the night's hdps run had its bright-star detection mask on."""
-    return ("Everything except star E is one real hdps night (reduction, WCS, reprojection, SFFT difference, "
-            "detection, alert features). Star E is added to hdps's images afterwards: ArgusSim's PSF at each frame's "
-            "seeing on hdps's tile grid, with its photon noise, up to the sensor's full well; in the difference image "
-            "as (now − reference) × PSF (SFFT's match taken as perfect for it). It is measured with hdps's source "
-            "detector (zero point from hdps's own catalogue of the frame) and alerted by hdps's alert features"
-            + (", hdps's bright-star mask" if masked else "") + " and the real/bogus model. Checked against injected "
-            "stars hdps measured itself" + ("" if masked else " (on a night hdps processed with its bright-star mask "
-                                                               "on)") + ": the same photometry within 0.01 mag and the "
-            "same alerts (97% and 100% of frames)." + (" This night was processed with hdps's bright-star mask on "
-                                                        "(not Argus's production setting): as in hdps then, a source "
-                                                        "brighter than about β 15 does not alert." if masked else "")
-            + " Airmass +: every image dimmed by the extra extinction, blurred to the worse "
-            "seeing (∝ X^0.6) and given the extra sky noise; the field's own alerts and light curves stay as observed.")
+def stand_ins(masked, true_calibration=False, image=None):
+    """The note under the controls. masked: the night's hdps run had its bright-star detection mask on;
+    true_calibration: its frames' WCS and zero point were the simulation's (TrueCalibrationTask), not hdps's solve;
+    image: the run's [image] settings (how its stars were drawn: the PSF's outer wing, a wider box, the halo)."""
+    if true_calibration:
+        night = ("Everything except star E is one real hdps night (reduction, source detection, reprojection, SFFT "
+                 "difference, detection, alert features), with each frame's WCS and zero point taken from the "
+                 "simulation instead of hdps's astrometric solve (the true WCS; the throughput's AB zero point with "
+                 "the share of a star's light in hdps's aperture).")
+        zero_point = "zero point from hdps's catalogue of the frame, calibrated with the simulation's"
+    else:
+        night = ("Everything except star E is one real hdps night (reduction, WCS solve, reprojection, SFFT "
+                 "difference, detection, alert features).")
+        zero_point = "zero point from hdps's own catalogue of the frame"
+    image = image or {}
+    if image.get("psf_wing"):
+        psf = "ArgusSim's PSF continued by a power-law outer wing fitted to it (as the night's stars)"
+    elif int(image.get("psf_box", 28)) > 28:
+        psf = (f"ArgusSim's PSF in a {int(image['psf_box'])} px box" + (", with the halo measured on sky"
+                                                                         if image.get("psf_halo") else "")
+               + " (as the night's stars)")
+    else:
+        psf = "ArgusSim's PSF"
+    return (night + f" Star E is added to hdps's images afterwards: {psf} at each frame's seeing on hdps's tile "
+            "grid, with its photon noise, up to the sensor's full well; in the difference image as (now − reference) "
+            "× PSF (SFFT's match taken as perfect for it, so E has none of the small residuals hdps leaves at the "
+            f"field's bright stars). It is measured with hdps's source detector ({zero_point}) "
+            "and alerted by hdps's alert features" + (", hdps's bright-star mask" if masked else "") + " and the "
+            "real/bogus model. Checked against injected stars hdps measured itself (on a night hdps processed with "
+            "its bright-star mask on and its own WCS solve): the same photometry within 0.01 mag and the same alerts "
+            "(97% and 100% of frames)." + (" This night was processed with hdps's bright-star mask on (not Argus's "
+                                            "production setting): as in hdps then, a source brighter than about β 15 "
+                                            "does not alert." if masked else "")
+            + " Airmass +: every image dimmed by the extra extinction, blurred to the worse seeing (∝ X^0.6) and "
+            "given the extra sky noise; the field's own alerts and light curves stay as observed.")
 
 
 NOTE_STYLE = "font-size:11px;color:#555;max-width:1150px"
@@ -128,12 +164,14 @@ class App:
                                      style=style, continuous_update=False, readout_format=".3f")
         self.airmass = W.FloatSlider(value=0.0, min=0.0, max=1.0, step=0.1, description="Airmass +", layout=layout,
                                      style=style, continuous_update=False, readout_format=".1f")
+        self.zoom = W.FloatLogSlider(value=1.0, base=2, min=0, max=3, step=0.25, description="Zoom (×)", layout=layout,
+                                     style=style, continuous_update=False, readout_format=".2g")  # 1-8x, about star E
         self.frame = W.IntSlider(value=0, min=0, max=1, description="Frame", layout=W.Layout(width="640px"),
                                  style=style, continuous_update=False)
         self.play = W.ToggleButton(value=False, description="Play", icon="play", layout=W.Layout(width="100px"))
         self.status = W.HTML()
         self.notes = W.HTML(f"<div style='{NOTE_STYLE}'>{stand_ins(False)}</div>")
-        self.where = [30.0, -20.0]
+        self.where = home(first)
         self.night = None
         self._busy = False
         self._quiet = False  # set while the app changes its own controls: their handlers do nothing
@@ -148,6 +186,7 @@ class App:
         self.kind.observe(self._kind_changed, "value")
         for w in (self.mag, self.amp, self.time, self.airmass):
             w.observe(self._quietly(self._recompute), "value")
+        self.zoom.observe(self._quietly(self._zoomed), "value")
         self.frame.observe(self._quietly(self._draw), "value")
         self.play.observe(self._play_changed, "value")
         self._kind_changed(None, recompute=False)
@@ -162,7 +201,7 @@ class App:
             W.HBox([self.field, self.band]),
             W.HBox([self.kind, self.mag]),
             W.HBox([self.amp, self.time]),
-            W.HBox([self.airmass]),
+            W.HBox([self.airmass, self.zoom]),
             W.HBox([self.play, self.frame]),
             self.status, self.notes,
         ])
@@ -190,6 +229,7 @@ class App:
         current = self.band.value
         self._set((self.band, "options", [b for b in BANDS if b[1] in bands]),
                   (self.band, "value", current if current in bands else bands[0]))
+        self.where = home(self.field.value)  # a place in one field means nothing in another
         self._load()
 
     def _kind_changed(self, _, recompute=True):
@@ -215,6 +255,15 @@ class App:
             return
         self.where = [float(event.xdata), float(event.ydata)]
         self._recompute()
+
+    def _zoomed(self):
+        """The image panels magnified about star E: nothing measured again; frames rendered for Play are dropped."""
+        self._stop_playing()
+        self._draw()
+
+    def view(self):
+        """(zoom, x, y): the image panels' magnification and the point (arcsec, star E) they are magnified about."""
+        return float(self.zoom.value), self.where[0], self.where[1]
 
     def _play_changed(self, change):
         self.play.icon = "pause" if change["new"] else "play"
@@ -242,7 +291,7 @@ class App:
                 r = self.night.result
                 try:
                     self._renders = self.workers.render(self.night.state, r["meas"], r["cands"], r["scored"],
-                                                        missing, self.render_dpi)
+                                                        missing, self.render_dpi, self.view())
                 except Exception:  # the pool broke: play by drawing here, and restart the workers meanwhile
                     self.workers.use(*self.workers.key)
                     while self.play.value and self.frame.value < self.frame.max:
@@ -284,7 +333,9 @@ class App:
         self.status.value = f"<b>loading {FIELD_NAMES.get(self.field.value, self.field.value)} ({band}) …</b>"
         t = time.time()
         self.night = N.Night(self.field.value, band)
-        self.notes.value = f"<div style='{NOTE_STYLE}'>{stand_ins(self.night.mask is not None)}</div>"
+        p = self.night.p
+        note = stand_ins(self.night.mask is not None, "TrueCalibrationTask" in p.get("chain", []), p.get("image"))
+        self.notes.value = f"<div style='{NOTE_STYLE}'>{note}</div>"
         if self.workers is not None:
             self.workers.use(self.field.value, band, self.night.model, self.night.cut)
         last = len(self.night.frames) - 1
@@ -345,7 +396,7 @@ class App:
                if found.any() else "")
             + (f" · saturated in {int(r['saturated'].sum())} frames" if r["saturated"].any() else "")
             + f" · alerted in {int(r['alerted'].sum())} frames · field alerts per frame {np.mean(r['n_field_alerts']):.1f} "
-            f"(real/bogus model {Path(self.night.model).parent.name if self.night.model else 'none'}, cut {self.night.cut}) · "
+            f"(real/bogus model {N.model_label(self.night.model) if self.night.model else 'none'}, cut {self.night.cut}) · "
             f"{band} · recomputed in {took:.1f} s" + ("" if with_workers else " (worker processes loading)"))
 
     def _draw(self):
@@ -353,7 +404,7 @@ class App:
             return
         self._busy = True
         try:
-            self.night.draw(self.fig, int(self.frame.value))  # into the canvas's own image
+            self.night.draw(self.fig, int(self.frame.value), self.view())  # into the canvas's own image
             self.fig.canvas.blit(self.fig.bbox)  # shown (an interactive canvas sends it to the browser)
         finally:
             self._busy = False

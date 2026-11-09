@@ -107,16 +107,18 @@ def aperture_fraction(psfs, band, seeing, angle_index, detection):
     return _aperture[key]
 
 
-def cards(w, residual_px, zp_total, aperture_share):
-    """The raw frame's calibration cards: the WCS, the zero points, the aperture share and the WCS fit's residual
-    (more than MAX_WCS_RESIDUAL px stops the run: a wrong WCS loses the frame's tiles in hdps's reprojection)."""
+def cards(w, residual_px, residual_rms_px, zp_total, aperture_share):
+    """The raw frame's calibration cards: the WCS, the zero points, the aperture share and the WCS fit's residuals,
+    largest and RMS (a largest over MAX_WCS_RESIDUAL px stops the run: a wrong WCS loses the frame's tiles in hdps's
+    reprojection)."""
     if not residual_px <= MAX_WCS_RESIDUAL:
         raise RuntimeError(f"true WCS: residual {residual_px:.3g} px over the sensor (at most {MAX_WCS_RESIDUAL})")
     out = wcs_cards(w)
     out.update(SIMZPTOT=(float(zp_total), "simulation: AB zero point, total electrons (mag)"),
                SIMAPFR=(float(aperture_share), "simulation: share of a star's e- in hdps's aperture"),
                SIMZPAP=(float(zp_total + 2.5 * np.log10(aperture_share)), "simulation: zero point, hdps aperture flux"),
-               SIMWCSR=(float(residual_px), "simulation: true WCS fit, largest residual (px)"))
+               SIMWCSR=(float(residual_px), "simulation: true WCS fit, largest residual (px)"),
+               SIMWCSM=(float(residual_rms_px), "simulation: true WCS fit, RMS residual (px)"))
     return out
 
 
@@ -136,7 +138,15 @@ def stellar_fwhm(image, scale_arcsec):
     table = getattr(getattr(image, "sources", None), "table", None)
     if table is None or len(table) < 5:
         return None
-    data = np.asarray(image.data, dtype=np.float64)
+    # After a GPU-resident reduction the calibrated frame is the device copy and .data the stale raw one (hdps's
+    # TPVWCSSolverTask harvest reads it the same way).
+    data = image.data
+    if getattr(image, "_is_gpu_current", False) and not getattr(image, "_is_cpu_current", True) \
+            and getattr(image, "_gpu_data", None) is not None:
+        import cupy
+
+        data = cupy.asnumpy(image._gpu_data)
+    data = np.asarray(data, dtype=np.float64)
     var = np.maximum(data, 1.0)  # electrons: Poisson, sky included
     valid = np.isfinite(data)
     x, y = np.asarray(table["xcentroid"], float), np.asarray(table["ycentroid"], float)
@@ -190,7 +200,14 @@ class TrueCalibrationTask(Task):
         meta["coadd_magzp"] = float(header["SIMZPAP"])
         meta["magzp_band"] = str(header.get("FILTER", ""))
         meta["psf_magzp"] = float(header["SIMZPTOT"])
-        seeing = stellar_fwhm(input_param, float(np.sqrt(abs(np.linalg.det(w.pixel_scale_matrix)))) * 3600.0)
+        scale = float(np.sqrt(abs(np.linalg.det(w.pixel_scale_matrix)))) * 3600.0
+        # Calibration quality under the keys hdps's own fits write: the zero point is the simulation's exact one
+        # (error 0); the WCS is fitted to the simulation's true mapping, not to stars (no TPV_NMAT: the packet's
+        # numReferenceSources stays empty), its RMS residual as TPV_RMS (arcsec).
+        meta["psf_magzp_err"] = 0.0
+        if "SIMWCSM" in header:
+            meta["TPV_RMS"] = float(header["SIMWCSM"]) * scale
+        seeing = stellar_fwhm(input_param, scale)
         if seeing is not None:
             meta["coadd_seeing"] = seeing
         return input_param

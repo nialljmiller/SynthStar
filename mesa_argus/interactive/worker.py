@@ -58,8 +58,9 @@ def measure(key, state, ns):
     return _get(key).measure_frames(state, ns)
 
 
-def render(key, state, meas, cands, scored, ns, dpi):
-    """[(n, JPEG bytes)] of movie frames ns for a state, from its measurements and their scores."""
+def render(key, state, meas, cands, scored, ns, dpi, view=None):
+    """[(n, JPEG bytes)] of movie frames ns for a state, from its measurements and their scores; view: the image
+    panels' (zoom, x, y) (Night.draw)."""
     global _fig
     import matplotlib.pyplot as plt
 
@@ -70,7 +71,7 @@ def render(key, state, meas, cands, scored, ns, dpi):
         night.nm.apply_style()
         _fig = plt.figure(figsize=(16, 10), dpi=dpi)
     _fig.set_dpi(dpi)
-    return [(n, night.frame_image(_fig, n)) for n in ns]
+    return [(n, night.frame_image(_fig, n, view=view)) for n in ns]
 
 
 class Workers:
@@ -118,10 +119,11 @@ class Workers:
             self.use(*self.key)
             return None
 
-    def render(self, state, meas, cands, scored, ns, dpi, chunk=3):
-        """[future of [(n, JPEG)]] for frames ns in order, a few frames per future (playback starts with the first)."""
+    def render(self, state, meas, cands, scored, ns, dpi, view=None, chunk=3):
+        """[future of [(n, JPEG)]] for frames ns in order, a few frames per future (playback starts with the first);
+        view: the image panels' (zoom, x, y)."""
         ns = list(ns)
-        return [self.pool.submit(render, self.key, state, meas, cands, scored, ns[i:i + chunk], dpi)
+        return [self.pool.submit(render, self.key, state, meas, cands, scored, ns[i:i + chunk], dpi, view)
                 for i in range(0, len(ns), chunk)]
 
     def close(self):

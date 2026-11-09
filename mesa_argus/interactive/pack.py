@@ -117,7 +117,10 @@ def candidates(nm, out, args, d, frames):
 
 def cutout_zero_points(out, args, d, frames, mag_max=17.0, match_arcsec=1.5):
     """Each frame's zero point on its science cut-out: median of hdps's calibrated catalogue magnitude + 2.5 log10
-    (the cut-out flux hdps's detector measures) over the unsaturated stars brighter than mag_max found in both."""
+    (the cut-out flux hdps's detector measures) over the unsaturated stars brighter than mag_max found in both. A frame
+    with fewer than 5 such stars (a sparse block: M45 beta, 34 of 224 frames) takes hdps's zero point of the frame +
+    the cut-out's offset from it, the median over the frames that have both (the tile's flux scale: M45 beta with
+    TrueCalibrationTask 0.279 mag, rms 0.008)."""
     from astropy.table import Table
 
     from mesa_argus.interactive import measure
@@ -125,7 +128,7 @@ def cutout_zero_points(out, args, d, frames, mag_max=17.0, match_arcsec=1.5):
     sdx, sdy = np.asarray(d["stars"]["dx"], float), np.asarray(d["stars"]["dy"], float)
     folder = out / "catalogues"
     name = args.field
-    zps = []
+    zps, frame_zp = [], np.full(len(frames), np.nan)
     for n, j in enumerate(frames):
         c = d["cutouts"][n]
         path = folder / f"{name}_{args.band}_{j:04d}.parquet"
@@ -133,6 +136,7 @@ def cutout_zero_points(out, args, d, frames, mag_max=17.0, match_arcsec=1.5):
             zps.append(np.nan)
             continue
         cat = Table.read(path)
+        frame_zp[n] = float(cat.meta.get("zp_zp", np.nan))
         ok = (np.asarray(cat["star"]) >= 0) & ~np.asarray(cat["saturated"], bool) & (np.asarray(cat["mag"]) < mag_max)
         cat = cat[ok]
         found = measure.detect(c["science"])
@@ -149,7 +153,12 @@ def cutout_zero_points(out, args, d, frames, mag_max=17.0, match_arcsec=1.5):
             if sep[i] <= match_arcsec and found["flux"][i] > 0 and not found["is_saturated"][i]:
                 diffs.append(m + 2.5 * np.log10(float(found["flux"][i])))
         zps.append(float(np.median(diffs)) if len(diffs) >= 5 else np.nan)
-    return np.array(zps)
+    zps = np.array(zps)
+    both = np.isfinite(zps) & np.isfinite(frame_zp)
+    if both.sum() >= 10:
+        fill = ~np.isfinite(zps) & np.isfinite(frame_zp)
+        zps[fill] = frame_zp[fill] + np.median(zps[both] - frame_zp[both])
+    return zps
 
 
 def sfft_settings(out):
@@ -159,6 +168,21 @@ def sfft_settings(out):
     obs = runconfig.resolve(runconfig.load(Path(out) / "observation.toml"))
     task = next((t for t in obs["hdps"]["tasks"] if t["type"] == "SFFTSubtractionTask"), None)
     return dict(task["config"]) if task is not None else {}
+
+
+def chain(out):
+    """The run's hdps Task chain (its types, in order): whether hdps solved each frame or took the simulation's
+    calibration (TrueCalibrationTask)."""
+    from mesa_argus import runconfig
+
+    return [t["type"] for t in runconfig.resolve(runconfig.load(Path(out) / "observation.toml"))["hdps"]["tasks"]]
+
+
+def image_settings(out):
+    """The run's [image] settings (its PSF wing): the edited star is drawn as the run drew its stars."""
+    from mesa_argus import runconfig
+
+    return dict(runconfig.resolve(runconfig.load(Path(out) / "observation.toml"))["image"])
 
 
 def build(out, band, pack_name):
@@ -195,7 +219,14 @@ def build(out, band, pack_name):
         candidates=candidates(nm, out, args, d, frames),
         zp=cutout_zero_points(out, args, d, frames),
         sfft=sfft_settings(out),
+        image=image_settings(out),
+        chain=chain(out),
     )
+    n_all = len(frames)
+    pack = drop_failed(pack)
+    frames = pack["frames"]
+    if len(frames) < n_all:
+        print(f"{n_all - len(frames)} of {n_all} frames left out: hdps failed on them (no cut-outs)", flush=True)
     PACKS.mkdir(parents=True, exist_ok=True)
     path = PACKS / f"{pack_name}_{band}.joblib"
     joblib.dump(pack, path, compress=3)
@@ -204,6 +235,20 @@ def build(out, band, pack_name):
           f"{n_cand} alert candidates, cut-out zero points {np.nanmedian(pack['zp']):.3f} "
           f"(rms {np.nanstd(pack['zp']):.3f}, {int(np.isfinite(pack['zp']).sum())} frames)", flush=True)
     return path
+
+
+def drop_failed(pack):
+    """The pack without the frames hdps failed on (no cut-outs: no difference image to show or measure the star on);
+    every per-frame entry kept in step."""
+    keep = [n for n, c in enumerate(pack["cutouts"]) if c is not None]
+    if len(keep) == len(pack["frames"]):
+        return pack
+    for k in ("frames", "cutouts", "candidates"):
+        pack[k] = [pack[k][n] for n in keep]
+    pack["zp"] = np.asarray(pack["zp"])[keep]
+    pack["measured"] = {k: np.asarray(v)[keep] for k, v in pack["measured"].items()}
+    pack["true"] = {b: {k: np.asarray(v)[keep] for k, v in t.items()} for b, t in pack["true"].items()}
+    return pack
 
 
 def _replace_into(path, write):

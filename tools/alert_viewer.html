@@ -1,0 +1,1222 @@
+<meta charset="utf-8">
+<title>Argus Alert Inspector</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: an instrument console - alert list | the alert (cutouts, light curve) | where it is and what it is (sky, fields, verdict) */
+:root {
+  --bg: #eef1f4; --surface: #fbfcfd; --surface-2: #e9edf1; --ink: #0e1217; --ink-2: #48515d; --muted: #737d8a;
+  --line: #d9dee5; --axis: #bcc4cd; --sel: #0e1217; --halo: #fbfcfd;
+  --real: #2a78d6; --bogus: #eb6834; --below: #1baf7a; --beta: #6250d6; --rho: #e34948;
+  --good: #0ca30c; --bad: #d03b3b; --warn: #c98500;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0b0d10; --surface: #14171c; --surface-2: #1d2128; --ink: #eef1f5; --ink-2: #b6bfca; --muted: #8590a0;
+  --line: #272c34; --axis: #3b424d; --sel: #eef1f5; --halo: #14171c;
+  --real: #3987e5; --bogus: #d95926; --below: #199e70; --beta: #9085e9; --rho: #e66767;
+  --good: #0ca30c; --bad: #e05555; --warn: #fab219; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0b0d10; --surface: #14171c; --surface-2: #1d2128; --ink: #eef1f5; --ink-2: #b6bfca; --muted: #8590a0;
+  --line: #272c34; --axis: #3b424d; --sel: #eef1f5; --halo: #14171c;
+  --real: #3987e5; --bogus: #d95926; --below: #199e70; --beta: #9085e9; --rho: #e66767;
+  --good: #0ca30c; --bad: #e05555; --warn: #fab219; color-scheme: dark; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--body); }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--sel); outline-offset: 2px; }
+.shell { height: 100%; display: flex; flex-direction: column; gap: 12px; padding-block: 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; }
+.top h1 { font: 600 20px/1.1 var(--display); letter-spacing: 0.01em; margin: 0; }
+.top .sample { color: var(--ink-2); font-size: 13px; min-width: 0; }
+.top .sample b { font-weight: 500; color: var(--ink); }
+.legend { display: flex; gap: 14px; margin-left: auto; font-size: 12.5px; color: var(--ink-2); }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--c); flex: none; }
+.app { flex: 1; min-height: 0; display: grid; grid-template-columns: 340px minmax(0, 1fr) 360px; gap: 12px; }
+.pane { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-height: 0; min-width: 0;
+  overflow: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 14px; }
+.eyebrow { font: 600 11px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.sec { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.sec-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sec-head .eyebrow { margin-right: auto; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.seg button { border: 0; background: transparent; padding: 3px 9px; font-size: 12.5px; cursor: pointer; color: var(--ink-2); }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 7px; padding: 4px 10px; cursor: pointer;
+  font-size: 12.5px; }
+.btn:hover { background: var(--surface-2); }
+.mono { font-family: var(--mono); font-size: 12.5px; }
+/* filters and list */
+.filters { display: flex; flex-direction: column; gap: 10px; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; font-size: 12.5px; cursor: pointer;
+  background: transparent; display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); }
+.chip[aria-pressed="true"] { border-color: var(--ink-2); color: var(--ink); background: var(--surface-2); }
+.chip[aria-pressed="false"] .dot { opacity: 0.35; }
+.frow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-2); }
+.frow input[type="range"] { flex: 1; min-width: 90px; }
+.frow select, .frow input[type="search"] { border: 1px solid var(--line); border-radius: 7px; background: var(--surface);
+  padding: 3px 7px; min-width: 0; flex: 1; }
+.list-pane { overflow: hidden; }
+.count { font-size: 12.5px; color: var(--ink-2); }
+.lhead, .row { display: grid; grid-template-columns: 14px 74px 18px 50px 42px minmax(0, 1fr) 30px; gap: 6px; align-items: center; }
+.lhead { font: 600 11px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+  padding: 0 8px 6px; border-bottom: 1px solid var(--line); }
+.lhead button { all: unset; cursor: pointer; }
+.lhead button[aria-pressed="true"] { color: var(--ink); }
+.list { flex: 1; min-height: 160px; overflow: auto; position: relative; }
+.row { position: absolute; left: 0; right: 0; height: 28px; padding: 0 8px; font: 12.5px var(--mono); cursor: pointer;
+  border-radius: 5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.row:hover { background: var(--surface-2); }
+.row[aria-selected="true"] { background: var(--ink); color: var(--surface); }
+.row .src { overflow: hidden; text-overflow: ellipsis; font-family: var(--body); }
+.row .icons { color: var(--muted); text-align: right; }
+.row[aria-selected="true"] .icons { color: var(--surface); }
+/* the alert */
+.head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 2px 10px; font-size: 13px;
+  border: 1px solid var(--line); background: var(--surface-2); white-space: nowrap; }
+.pill.big { font-weight: 600; }
+.idline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; min-width: 0; }
+.idline .mono { overflow-wrap: anywhere; color: var(--ink-2); }
+.nav { margin-left: auto; display: flex; gap: 6px; }
+.cutouts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.cut { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.cut .cap { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-2); gap: 6px; }
+.cutbox { position: relative; width: 100%; max-width: 100%; aspect-ratio: 1; background: var(--surface-2); border-radius: 6px;
+  overflow: hidden; }
+.cutbox canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; cursor: crosshair; }
+.nocut { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; padding: 14px; border: 1px dashed var(--axis);
+  border-radius: 8px; color: var(--ink-2); font-size: 13px; }
+.readout { font: 12px var(--mono); color: var(--ink-2); min-height: 1.5em; }
+.chartbox { position: relative; width: 100%; }
+.chartbox canvas { display: block; width: 100%; }
+#lc { height: 330px; cursor: crosshair; touch-action: none; }
+.skybox { aspect-ratio: 1; max-width: 100%; }
+#sky { height: 100%; cursor: grab; touch-action: none; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--surface); font: 12px/1.35 var(--mono);
+  padding: 5px 8px; border-radius: 6px; white-space: nowrap; z-index: 2; }
+.caption { font-size: 12.5px; color: var(--ink-2); }
+.keyrow { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--ink-2); align-items: center; }
+.mk { display: inline-block; width: 9px; height: 9px; background: var(--c); }
+.mk.c { border-radius: 50%; }
+.mk.ring { background: transparent; border: 1.5px solid var(--c); }
+.mk.ring.c { border-radius: 50%; }
+.mk.dash { background: none; height: 0; width: 11px; border-top: 2px solid var(--ink-2); }
+/* fields */
+dl.kv { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr); gap: 4px 10px; margin: 0; font-size: 13px; }
+dl.kv dt { color: var(--ink-2); }
+dl.kv dd { margin: 0; font: 12.5px var(--mono); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.scorebar { position: relative; height: 6px; background: var(--surface-2); border-radius: 3px; margin-top: 4px; }
+.scorebar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ink-2); border-radius: 3px; }
+.scorebar b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); }
+.verdict .vb { display: flex; gap: 6px; flex-wrap: wrap; }
+.verdict .btn[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.verdict textarea { width: 100%; min-height: 54px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface);
+  padding: 6px 8px; resize: vertical; }
+.status { font-size: 12.5px; color: var(--ink-2); }
+.about { font-size: 12.5px; color: var(--ink-2); }
+.about summary { cursor: pointer; color: var(--ink); }
+.empty { color: var(--ink-2); font-size: 13px; padding: 10px 0; }
+.top .btn { white-space: nowrap; }
+.intro { max-width: 640px; margin: 8vh auto 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  padding: 24px 26px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.intro h2 { font: 600 22px/1.2 var(--display); margin: 0; text-wrap: balance; }
+.intro p { margin: 0; color: var(--ink-2); max-width: 62ch; }
+.btn.big { font-size: 14px; padding: 7px 14px; background: var(--ink); color: var(--surface); border-color: var(--ink); }
+body.dragging::after { content: "Drop the alert sample folder"; position: fixed; inset: 12px; border: 2px dashed var(--ink-2);
+  border-radius: 14px; background: color-mix(in srgb, var(--bg) 88%, transparent); display: grid; place-items: center;
+  font: 600 20px var(--display); color: var(--ink); z-index: 20; pointer-events: none; }
+@media (max-width: 1180px) {
+  html, body { height: auto; }
+  .shell { height: auto; }
+  .app { grid-template-columns: 300px minmax(0, 1fr); align-items: start; }
+  .list-pane { grid-row: 1 / span 2; height: calc(100dvh - 90px); position: sticky; top: 12px; }
+  .side-pane { grid-column: 2; }
+  .pane { overflow: visible; }
+  .list-pane { overflow: hidden; }
+}
+@media (max-width: 760px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .list-pane { grid-row: auto; height: 460px; position: static; }
+  .side-pane { grid-column: auto; }
+  .legend { margin-left: 0; }
+  .lhead, .row { grid-template-columns: 14px 70px 16px 48px 40px minmax(0, 1fr) 26px; gap: 5px; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="shell">
+  <header class="top">
+    <h1>Argus Alert Inspector</h1>
+    <div class="sample" id="sample">Loading the alert sample…</div>
+    <div class="legend" aria-label="Colour key">
+      <span><span class="dot" style="--c: var(--real)"></span> Real</span>
+      <span><span class="dot" style="--c: var(--bogus)"></span> Bogus</span>
+      <span><span class="dot" style="--c: var(--below)"></span> Below 3σ</span>
+    </div>
+    <label class="btn" for="folder" title="Read an alert sample folder on this computer">Open alert folder…</label>
+    <input type="file" id="folder" webkitdirectory multiple hidden>
+  </header>
+  <section class="intro" id="intro" hidden>
+    <h2>Open an alert sample</h2>
+    <p>Choose the alert sample's folder, the one that holds <span class="mono">manifest.json</span>, <span class="mono">README.md</span>
+      and one folder per night, or drop it anywhere on this page. The viewer reads the packets as hdps wrote them
+      (<span class="mono">packets/*.avro</span>) and the truth beside them (<span class="mono">truth.parquet</span>) in this browser;
+      nothing is uploaded. Reading the truth tables loads one library from cdn.jsdelivr.net.</p>
+    <label class="btn big" for="folder">Choose the folder…</label>
+  </section>
+  <main class="app" id="app">
+    <section class="pane list-pane" aria-label="Alerts">
+      <div class="filters">
+        <div class="sec"><span class="eyebrow">Night and band</span><div class="chips" id="f-nb"></div></div>
+        <div class="sec"><span class="eyebrow">Truth label</span><div class="chips" id="f-label"></div></div>
+        <div class="sec"><span class="eyebrow">Truth class</span><div class="chips" id="f-class"></div></div>
+        <div class="frow"><label for="f-score">Score ≥ <span id="f-score-v" class="mono">0.00</span></label>
+          <input type="range" id="f-score" min="0" max="1" step="0.01" value="0"></div>
+        <div class="frow">
+          <select id="f-src" aria-label="Source"></select>
+          <select id="f-verdict" aria-label="Verdict">
+            <option value="all">Any verdict</option><option value="marked">With a verdict</option>
+            <option value="wrong">Marked wrong</option><option value="unmarked">No verdict</option></select>
+        </div>
+        <div class="frow"><input type="search" id="f-q" placeholder="alertId, epochId or source (T12)" aria-label="Search">
+          <label><input type="checkbox" id="f-cut"> Cutouts only</label></div>
+      </div>
+      <div class="count" id="count"></div>
+      <div>
+        <div class="lhead"><span></span><button id="s-t" aria-pressed="true">Time UTC</button><span></span>
+          <button id="s-mag" aria-pressed="false">Mag</button><button id="s-score" aria-pressed="false">Score</button>
+          <span>Source</span><span></span></div>
+      </div>
+      <div class="list" id="list" tabindex="0" role="listbox" aria-label="Alerts"><div id="spacer"></div></div>
+      <details class="about"><summary>What the viewer holds</summary>
+        <p id="about-text"></p></details>
+    </section>
+
+    <section class="pane focus-pane" aria-label="Selected alert">
+      <div class="head" id="head"><span class="empty">Loading…</span></div>
+      <div class="sec">
+        <div class="sec-head"><span class="eyebrow">Cutouts · 32 × 32 px · N ↑ E ←</span>
+          <div class="seg" id="stretch" role="group" aria-label="Stretch">
+            <button data-v="asinh" aria-pressed="true">asinh</button><button data-v="linear" aria-pressed="false">linear</button>
+            <button data-v="sigma" aria-pressed="false">±σ</button></div></div>
+        <div id="cutwrap"></div>
+        <div class="readout" id="readout">Point at a pixel to read its value (e⁻ per sensor-pixel area).</div>
+      </div>
+      <div class="sec">
+        <div class="sec-head"><span class="eyebrow" id="lc-title">Light curve</span>
+          <div class="seg" id="lc-y" role="group" aria-label="Y axis">
+            <button data-v="flux" aria-pressed="true">Δflux</button><button data-v="mag" aria-pressed="false">mag</button></div>
+          <div class="seg" id="lc-x" role="group" aria-label="Time range">
+            <button data-v="week" aria-pressed="true">Week</button><button data-v="night" aria-pressed="false">Night</button></div>
+          <button class="btn" id="lc-reset">Reset zoom</button></div>
+        <div class="chips" id="lc-show" role="group" aria-label="Series to show">
+          <button class="chip" type="button" data-k="beta_m" aria-pressed="true"><span class="mk c" style="--c: var(--beta)"></span>β measured</button>
+          <button class="chip" type="button" data-k="rho_m" aria-pressed="true"><span class="mk" style="--c: var(--rho)"></span>ρ measured</button>
+          <button class="chip" type="button" data-k="beta_t" aria-pressed="true"><span class="mk ring c" style="--c: var(--beta)"></span>β truth</button>
+          <button class="chip" type="button" data-k="rho_t" aria-pressed="true"><span class="mk ring" style="--c: var(--rho)"></span>ρ truth</button>
+          <button class="chip" type="button" data-k="total" aria-pressed="false"><span class="mk dash"></span>true total</button>
+          <button class="chip" type="button" data-k="err" aria-pressed="true">error bars</button>
+          <button class="chip" type="button" data-k="resid" aria-pressed="true">residuals</button></div>
+        <div class="chartbox"><canvas id="lc" aria-label="Light curve of the selected alert's source"></canvas>
+          <div class="tip" id="lc-tip" hidden></div></div>
+        <div class="caption">Drag a box to zoom · scroll: zoom time · shift + scroll: zoom the y axis · shift + drag: pan ·
+          double-click: reset · click a point: open that alert. Truth: the true flux change since the reference; true total:
+          the source's whole flux (or magnitude) now.</div>
+        <div class="caption" id="lc-cap"></div>
+      </div>
+    </section>
+
+    <section class="pane side-pane" aria-label="Sky, fields and verdict">
+      <div class="sec">
+        <div class="sec-head"><span class="eyebrow">Sky · offsets from the field centre</span>
+          <button class="btn" id="sky-reset" title="Show the whole window">Whole window</button></div>
+        <div class="chartbox skybox"><canvas id="sky" aria-label="Alerts on the sky; click one to open it"></canvas>
+          <div class="tip" id="sky-tip" hidden></div></div>
+        <div class="caption">Scroll to zoom, drag to pan. Larger marks: the selected alert's source.</div>
+      </div>
+      <div class="sec"><span class="eyebrow">Detection (from the packet)</span><dl class="kv" id="kv-det"></dl></div>
+      <div class="sec"><span class="eyebrow">Truth (from the simulation)</span><dl class="kv" id="kv-truth"></dl></div>
+      <div class="sec verdict" id="verdict" hidden>
+        <span class="eyebrow">Your check</span>
+        <div class="vb" role="group" aria-label="Verdict">
+          <button class="btn" data-v="ok" aria-pressed="false"><span style="color: var(--good)">✓</span> Looks right</button>
+          <button class="btn" data-v="wrong" aria-pressed="false"><span style="color: var(--bad)">✗</span> Wrong</button>
+          <button class="btn" data-v="unsure" aria-pressed="false"><span style="color: var(--warn)">?</span> Unsure</button></div>
+        <textarea id="v-note" placeholder="What looks wrong? (saved with the verdict)" aria-label="Note"></textarea>
+        <div class="frow"><button class="btn" id="v-save">Save</button><button class="btn" id="v-clear">Remove verdict</button>
+          <span class="status" id="v-status"></span></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const DT = { f64: Float64Array, f32: Float32Array, i32: Int32Array, i16: Int16Array, u8: Uint8Array, i8: Int8Array, u8x16: Uint8Array, f32x12: Float32Array };
+const PER = { u8x16: 16, f32x12: 12 };  // values per packet of a vector column
+const LABELS = [[1, "Real", "--real"], [0, "Bogus", "--bogus"], [-1, "Below 3σ", "--below"]];
+const S = { ix: null, N: 0, c: {}, nbOf: null, nbStart: [], cut: new Map(), rows: new Int32Array(0), sel: -1,
+  srcRows: new Map(), grid: new Map(), verdicts: new Map(), db: null, uid: null, canWrite: true,
+  sort: "t", stretch: "asinh", lcY: "flux", lcX: "week", group: null, hex: null };
+const F = { nb: new Set(), label: new Set([1, 0, -1]), cls: new Set([0, 1, 2, 3, 255]), score: 0, src: "all", verdict: "all",
+  q: "", cutOnly: false };
+const ROW_H = 28, GROUP_R = 3;  // arcsec: alerts without a source group by position
+
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const fmt = (v, d = 2) => Number.isFinite(v) ? v.toFixed(d) : "—";
+const fmtInt = (v) => Number.isFinite(v) ? Math.round(v).toLocaleString("en-US") : "—";
+const labelOf = (l) => LABELS.find((x) => x[0] === l) || [l, String(l), "--muted"];
+function utc(t) { return new Date(Date.parse(S.ix.t0_utc) + t * 864e5); }
+function utcStr(t) { return utc(t).toISOString().replace("T", " ").slice(0, 19) + " UTC"; }
+function hhmm(t) { return utc(t).toISOString().slice(11, 16); }
+function nbName(nb) { return `N${nb.night} ${nb.band === "beta" ? "β" : "ρ"}`; }
+function alertId(i) {
+  const b = S.c.uuid.subarray(16 * i, 16 * i + 16);
+  let h = ""; for (const x of b) h += x.toString(16).padStart(2, "0");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+function srcOf(i) { const s = S.c.src[i]; return s >= 0 ? S.ix.sources[s] : null; }
+function setStatus(text) { $("sample").textContent = text; }
+
+/* ---------- loading: the published data (index.json, .meta.txt, atlases) or an alert sample folder ---------- */
+async function fetchBytes(name) {  // the files are gzip + base64 text (artifacts serve text, not raw bytes)
+  const r = await fetch("data/" + name);
+  if (!r.ok) throw new Error(`${name} could not be loaded.`);
+  const bin = atob((await r.text()).trim()), u8 = new Uint8Array(bin.length);
+  for (let k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k);
+  if (!("DecompressionStream" in window)) throw new Error("This browser cannot decompress the data (no DecompressionStream).");
+  return new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
+}
+async function loadPublished() {  // null: no published data here (a local copy of the page)
+  if (location.protocol === "file:") return null;
+  let ix;
+  try { const r = await fetch("data/index.json"); if (!r.ok) return null; ix = await r.json(); } catch (e) { return null; }
+  const parts = []; let N = 0;
+  for (const [k, nb] of ix.nightbands.entries()) {
+    setStatus(`Loading ${nbName(nb)} (${k + 1} of ${ix.nightbands.length})…`);
+    parts.push({ nb, buf: await fetchBytes(nb.meta), start: N }); N += nb.n;
+  }
+  const c = {};
+  for (const col of ix.columns) c[col.name] = new DT[col.type]((PER[col.type] || 1) * N);
+  const nbOf = new Uint8Array(N);
+  parts.forEach(({ nb, buf, start }, k) => {
+    for (const col of ix.columns) { const m = PER[col.type] || 1; c[col.name].set(new DT[col.type](buf, nb.offsets[col.name], nb.n * m), start * m); }
+    nbOf.fill(k, start, start + nb.n);
+  });
+  return { ix, c, N, nbOf, mode: "published" };
+}
+
+// Avro object container files (hdps's packets): a reader compiled from the file's own schema
+const TD = new TextDecoder();
+class AvroIn {
+  constructor(u8) { this.b = u8; this.p = 0; this.dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength); }
+  long() { let v = 0, mul = 1, x; do { x = this.b[this.p++]; v += (x & 0x7f) * mul; mul *= 128; } while (x & 0x80); return v % 2 === 0 ? v / 2 : -(v + 1) / 2; }
+  f32() { const v = this.dv.getFloat32(this.p, true); this.p += 4; return v; }
+  f64() { const v = this.dv.getFloat64(this.p, true); this.p += 8; return v; }
+  take(n) { const v = this.b.subarray(this.p, this.p + n); this.p += n; return v; }
+  bytes() { return this.take(this.long()); }
+  str() { return TD.decode(this.bytes()); }
+}
+function avroDecoder(schema) {
+  const named = new Map();
+  const full = (name, ns) => name.includes(".") || !ns ? name : `${ns}.${name}`;
+  const blocks = (r, each) => { for (;;) { let n = r.long(); if (n === 0) return; if (n < 0) { n = -n; r.long(); } for (let k = 0; k < n; k++) each(); } };
+  function compile(t, ns) {
+    if (typeof t === "string") {
+      switch (t) {
+        case "null": return () => null;
+        case "boolean": return (r) => r.b[r.p++] !== 0;
+        case "int": case "long": return (r) => r.long();
+        case "float": return (r) => r.f32();
+        case "double": return (r) => r.f64();
+        case "bytes": return (r) => r.bytes();
+        case "string": return (r) => r.str();
+        default: { const h = named.get(full(t, ns)) || named.get(t); if (!h) throw new Error(`Avro: unknown type ${t}`); return (r) => h.fn(r); }
+      }
+    }
+    if (Array.isArray(t)) { const branch = t.map((x) => compile(x, ns)); return (r) => branch[r.long()](r); }
+    if (t.type === "record" || t.type === "error") {
+      const name = full(t.name, t.namespace || ns), h = { fn: null }; named.set(name, h);
+      const inner = name.includes(".") ? name.slice(0, name.lastIndexOf(".")) : ns;
+      const fields = t.fields.map((f) => [f.name, compile(f.type, inner)]);
+      return (h.fn = (r) => { const o = {}; for (const [k, fn] of fields) o[k] = fn(r); return o; });
+    }
+    if (t.type === "enum") { const h = { fn: (r) => t.symbols[r.long()] }; named.set(full(t.name, t.namespace || ns), h); return h.fn; }
+    if (t.type === "fixed") { const h = { fn: (r) => r.take(t.size) }; named.set(full(t.name, t.namespace || ns), h); return h.fn; }
+    if (t.type === "array") { const it = compile(t.items, ns); return (r) => { const out = []; blocks(r, () => out.push(it(r))); return out; }; }
+    if (t.type === "map") { const v = compile(t.values, ns); return (r) => { const out = {}; blocks(r, () => { const k = r.str(); out[k] = v(r); }); return out; }; }
+    return compile(t.type, ns);  // a primitive with a logical type, e.g. {"type": "string", "logicalType": "uuid"}
+  }
+  return compile(schema, "");
+}
+const DECODERS = new Map();
+// fastavro ends each deflate block with 3 bytes of zlib's checksum (it cuts zlib's 2-byte header and only the last of
+// the 4 checksum bytes): Python's zlib ignores them, a browser's DecompressionStream refuses them. Other writers end
+// the block with the deflate stream itself. So the trailing bytes are tried off in turn, the last way that worked first.
+let deflateTail = 3;
+async function inflateRaw(u8) {
+  let err;
+  for (const cut of [deflateTail, ...[3, 0, 4, 2, 1].filter((k) => k !== deflateTail)]) {
+    try {
+      const out = new Uint8Array(await new Response(new Blob([u8.subarray(0, u8.length - cut)]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer());
+      deflateTail = cut; return out;
+    } catch (e) { err = e; }
+  }
+  throw new Error(`A packet block could not be decompressed (${err && err.message}).`);
+}
+async function readAvro(file) {
+  const u8 = new Uint8Array(await file.arrayBuffer()), r = new AvroIn(u8);
+  if (u8[0] !== 0x4f || u8[1] !== 0x62 || u8[2] !== 0x6a || u8[3] !== 1) throw new Error(`${file.name} is not an Avro file.`);
+  r.p = 4;
+  const meta = {}; for (;;) { let n = r.long(); if (n === 0) break; if (n < 0) { n = -n; r.long(); } for (let k = 0; k < n; k++) { const key = r.str(); meta[key] = r.bytes(); } }
+  r.take(16);
+  const text = TD.decode(meta["avro.schema"]), codec = meta["avro.codec"] ? TD.decode(meta["avro.codec"]) : "null";
+  if (!DECODERS.has(text)) DECODERS.set(text, avroDecoder(JSON.parse(text)));
+  const read = DECODERS.get(text), out = [];
+  while (r.p < u8.length) {
+    const count = r.long(); let block = r.take(r.long()); r.take(16);
+    if (codec === "deflate") block = await inflateRaw(block); else if (codec !== "null") throw new Error(`Avro codec ${codec} is not supported.`);
+    const br = new AvroIn(block); for (let k = 0; k < count; k++) out.push(read(br));
+  }
+  return out;
+}
+// a dropped or chosen folder -> [{path, file}] (paths from the folder's own name down)
+async function dropped(items) {
+  const out = [], walk = async (entry) => {
+    if (entry.isFile) { out.push({ path: entry.fullPath.replace(/^\//, ""), file: await new Promise((ok, bad) => entry.file(ok, bad)) }); return; }
+    const reader = entry.createReader();
+    for (;;) { const batch = await new Promise((ok, bad) => reader.readEntries(ok, bad)); if (!batch.length) break; for (const e of batch) await walk(e); }
+  };
+  for (const it of items) { const e = it.webkitGetAsEntry && it.webkitGetAsEntry(); if (e) await walk(e); }
+  return out;
+}
+const chosen = (files) => Array.from(files, (f) => ({ path: f.webkitRelativePath || f.name, file: f }));
+function fieldCentre(field) {
+  const m = /f(\d+)_(\d+)([pm])(\d+)_(\d+)/.exec(field || "");
+  return m ? [parseFloat(`${m[1]}.${m[2]}`), (m[3] === "p" ? 1 : -1) * parseFloat(`${m[4]}.${m[5]}`)] : null;
+}
+const HYPARQUET = "https://cdn.jsdelivr.net/npm/hyparquet@1.31.3/src/index.js";
+const CLASSES = ["transient", "variable", "constant", "none"];
+const SOURCE_KEYS = ["kind", "generator", "engine", "model", "params", "z", "t0_bjd", "peak_days", "period", "ebv", "distance_pc", "star"];
+async function loadFolder(entries) {
+  const man = entries.filter((e) => /(^|\/)manifest\.json$/.test(e.path)).sort((a, b) => a.path.length - b.path.length)[0];
+  if (!man) throw new Error("That folder has no manifest.json. Choose the alert sample's own folder: it holds manifest.json, README.md and one folder per night.");
+  const root = man.path.slice(0, -"manifest.json".length), files = new Map(entries.map((e) => [e.path, e.file]));
+  const manifest = JSON.parse(await man.file.text());
+  const nights = manifest.nights.slice().sort((a, b) => a.date.localeCompare(b.date) || a.observation.localeCompare(b.observation) || (a.band === "beta" ? -1 : 1));
+  let parquetReadObjects;
+  try { ({ parquetReadObjects } = await import(HYPARQUET)); }
+  catch (e) { throw new Error("Reading truth.parquet needs the hyparquet library from cdn.jsdelivr.net, which did not load: check the internet connection."); }
+  const dates = [...new Set(nights.map((e) => e.date))].sort();
+  const t0 = Date.parse(dates[0] + "T00:00:00Z");
+  const centre = fieldCentre(nights[0].field) || [0, 0];
+  const cosd = Math.cos(centre[1] * Math.PI / 180);
+  const cols = { epoch: [], t: [], dx: [], dy: [], mag: [], magErr: [], flux: [], fluxErr: [], snr: [], score: [], magSci: [], limMag: [], zp: [],
+    fwhm: [], x: [], y: [], tMag: [], tDiff: [], tNow: [], tRef: [], tSep: [], cut: [], exposure: [], tanseg: [], camera: [], src: [], cls: [], label: [] };
+  const uuid = [], pfile = [], nbOf = [], srcIndex = new Map(), sources = [], nightbands = [], missing = [];
+  for (const e of nights) {
+    const dir = `${root}${e.observation}/${e.band}/`, k = nightbands.length;
+    const truthFile = files.get(dir + "truth.parquet");
+    if (!truthFile) { missing.push(`${e.observation} ${e.band}`); continue; }  // (a folder holding part of the sample)
+    const truth = await parquetReadObjects({ file: await truthFile.arrayBuffer() });
+    const varFile = files.get(dir + "truth_variables.parquet");  // variable-star truth is kept in its own file
+    if (varFile) truth.push(...await parquetReadObjects({ file: await varFile.arrayBuffer() }));
+    const packetFiles = entries.filter((x) => x.path.startsWith(dir + "packets/") && x.path.endsWith(".avro"));
+    const pk = new Map(); let next = 0, done = 0;
+    await Promise.all(Array.from({ length: 8 }, async () => {  // 8 files at a time; only each packet's fields are kept
+      for (let f; (f = packetFiles[next++]);) {
+        for (const p of await readAvro(f.file)) {
+          const c = p.candidate;
+          pk.set(String(p.alertId), [c.epochId, c.psfMagnitudeDif, c.psfMagnitudeDifErr, c.psfFluxDif, c.psfFluxDifErr, c.psfSnr, c.realBogusScore,
+            c.psfMagnitudeSci, c.psfLimMag, c.psfZeropoint, c.fwhm, c.x, c.y, c.tansegId, (c.cameraIds || [0])[0],
+            [p.cutoutScience, p.cutoutDifference, p.cutoutTemplate].every((b) => b && b.length === 4096), f.path]);
+        }
+        if (++done % 25 === 0) setStatus(`Reading ${nbName({ night: +((/_n(\d+)$/.exec(e.observation) || [])[1] || 0), band: e.band })}: ${done} of ${packetFiles.length} packet files…`);
+      }
+    }));
+    const night = +((/_n(\d+)$/.exec(e.observation) || [])[1] || dates.indexOf(e.date) + 1);
+    let n = 0;
+    for (const row of truth) {
+      const p = pk.get(String(row.alertId)); if (!p) continue;
+      const num = (v) => v == null ? NaN : Number(v);
+      const label = row.truth_label || "";
+      let s = -1;
+      if (label) {
+        if (!srcIndex.has(label)) { srcIndex.set(label, sources.length); const info = { label }; for (const key of SOURCE_KEYS) { const v = row[`source_${key}`]; info[key] = v == null || (typeof v === "number" && !Number.isFinite(v)) ? null : (typeof v === "bigint" ? Number(v) : v); } sources.push(info); }
+        s = srcIndex.get(label);
+      }
+      const ra = num(row.ra), dec = num(row.dec);
+      cols.epoch.push(Number(p[0])); cols.t.push((Date.parse(String(row.time_utc).replace(" ", "T") + (/[zZ+]/.test(String(row.time_utc).slice(10)) ? "" : "Z")) - t0) / 864e5);
+      cols.dx.push((((ra - centre[0] + 540) % 360) - 180) * cosd * 3600); cols.dy.push((dec - centre[1]) * 3600);
+      for (const [name, v] of [["mag", p[1]], ["magErr", p[2]], ["flux", p[3]], ["fluxErr", p[4]], ["snr", p[5]], ["score", p[6]], ["magSci", p[7]], ["limMag", p[8]], ["zp", p[9]], ["fwhm", p[10]], ["x", p[11]], ["y", p[12]]]) cols[name].push(num(v));
+      cols.tanseg.push(Number(p[13]) || 0); cols.camera.push(Number(p[14]) || 0); cols.cut.push(p[15] ? 0 : -1); pfile.push(p[16]);
+      cols.tMag.push(num(row.truth_mag)); cols.tDiff.push(num(row.truth_diff_flux)); cols.tNow.push(num(row.truth_flux_now)); cols.tRef.push(num(row.truth_flux_reference)); cols.tSep.push(num(row.truth_sep_arcsec));
+      cols.exposure.push(Number(row.exposure)); cols.src.push(s); cols.cls.push(CLASSES.indexOf(row.truth_class) < 0 ? 255 : CLASSES.indexOf(row.truth_class)); cols.label.push(Number(row.label));
+      uuid.push(String(row.alertId)); nbOf.push(k); n++;
+    }
+    nightbands.push({ id: `n${night}_${e.band}`, observation: e.observation, band: e.band, night, date: e.date, moon: e.moon_illumination, n, ncut: 0 });
+  }
+  if (!nightbands.length) throw new Error("None of the manifest's nights has its truth.parquet in that folder.");
+  const N = uuid.length, type = { epoch: Float64Array, cut: Int32Array, exposure: Int32Array, tanseg: Int32Array, camera: Int32Array, src: Int16Array, cls: Uint8Array, label: Int8Array };
+  const c = {};
+  for (const [name, a] of Object.entries(cols)) c[name] = (type[name] || Float32Array).from(a);
+  c.uuid = new Uint8Array(16 * N);
+  uuid.forEach((id, i) => { const h = id.replace(/-/g, ""); for (let b = 0; b < 16; b++) c.uuid[16 * i + b] = parseInt(h.slice(2 * b, 2 * b + 2), 16); });
+  nightbands.forEach((nb, k) => { nb.ncut = 0; });
+  for (let i = 0; i < N; i++) if (c.cut[i] >= 0) nightbands[nbOf[i]].ncut++;
+  const first = nights[0];
+  const ix = { name: manifest.name || root.replace(/\/$/, ""), field: first.field || "", centre, t0_utc: new Date(t0).toISOString(),
+    model: [...new Set(nights.flatMap((e) => e.rb_model_versions || []))], bundle: first.model_bundle, score_cut: first.score_cut,
+    score_cut_value: first.score_cut_value, schema: [...new Set(nights.flatMap((e) => e.schema_versions || []))], classes: CLASSES, nightbands, sources, missing };
+  return { ix, c, N, nbOf: Uint8Array.from(nbOf), mode: "folder", files, pfile };
+}
+
+/* ---------- one data set into the page ---------- */
+function ingest(d) {
+  Object.assign(S, { ix: d.ix, c: d.c, N: d.N, nbOf: d.nbOf, mode: d.mode, files: d.files || null, pfile: d.pfile || null,
+    srcRows: new Map(), grid: new Map(), hex: null, sel: -1, planes: null });
+  ATLAS.clear(); PACKETS.clear(); SKY.s = 0; LCV.key = null; LCV.view = null;
+  const bySrc = new Map();
+  for (let i = 0; i < S.N; i++) {
+    const s = S.c.src[i];
+    if (s >= 0) { let a = bySrc.get(s); if (!a) bySrc.set(s, a = []); a.push(i); }
+    else { const key = cell(S.c.dx[i], S.c.dy[i]); let a = S.grid.get(key); if (!a) S.grid.set(key, a = []); a.push(i); }
+  }
+  for (const [s, a] of bySrc) S.srcRows.set(s, Int32Array.from(a.sort((x, y) => S.c.t[x] - S.c.t[y])));
+  F.nb = new Set(S.ix.nightbands.map((_, k) => k)); F.src = "all";
+  $("intro").hidden = true; $("app").hidden = false; $("list").scrollTop = 0;
+  buildFilters(); describe(); applyFilters();
+  const want = location.hash.slice(1).toLowerCase();
+  let first = /^[0-9a-f]{8}-/.test(want) ? findAlert(want) : -1;
+  if (first < 0) first = defaultAlert();
+  select(first, true);
+}
+async function start() {
+  wireFilters();
+  let d = null;
+  try { d = await loadPublished(); } catch (e) { setStatus(e.message); }
+  if (d) ingest(d);
+  else { $("app").hidden = true; $("intro").hidden = false; setStatus("Open an alert sample folder to begin."); }
+  initDb();
+}
+async function openEntries(get) {
+  try {
+    setStatus("Reading the folder…");
+    const entries = await get();
+    ingest(await loadFolder(entries));
+  } catch (e) { setStatus(e.message || String(e)); if (!S.N) { $("app").hidden = true; $("intro").hidden = false; } }
+}
+$("folder").addEventListener("change", (e) => { const files = e.target.files; if (files && files.length) openEntries(async () => chosen(files)); e.target.value = ""; });
+addEventListener("dragover", (e) => { e.preventDefault(); document.body.classList.add("dragging"); });
+addEventListener("dragleave", (e) => { if (!e.relatedTarget) document.body.classList.remove("dragging"); });
+addEventListener("drop", (e) => {
+  e.preventDefault(); document.body.classList.remove("dragging");
+  const items = Array.from(e.dataTransfer.items || []); if (items.length) openEntries(() => dropped(items));
+});
+function cell(dx, dy) { return Math.floor(dx / GROUP_R) * 1e6 + Math.floor(dy / GROUP_R); }
+function findAlert(id) { for (let i = 0; i < S.N; i++) if (alertId(i) === id) return i; return -1; }
+function defaultAlert() {  // a real alert with cutouts at a middling S/N (the brightest are saturated), else the first listed
+  let best = -1;
+  for (const i of S.rows) if (S.c.label[i] === 1 && S.c.cut[i] >= 0 && S.c.snr[i] >= 30 && S.c.snr[i] <= 150 && (best < 0 || S.c.snr[i] > S.c.snr[best])) best = i;
+  return best >= 0 ? best : (S.rows.length ? S.rows[0] : -1);
+}
+function describe() {
+  const ix = S.ix, nbs = ix.nightbands;
+  const n = nbs.reduce((a, b) => a + b.n, 0), nc = nbs.reduce((a, b) => a + b.ncut, 0);
+  const cut = ix.score_cut_value != null ? ` = ${ix.score_cut_value.toFixed(3)}` : "";
+  $("sample").innerHTML = "";
+  const b = document.createElement("b"); b.textContent = ix.name;
+  $("sample").append(b, ` · ${ix.field.replace("_field", "")} (RA ${ix.centre[0].toFixed(3)}°, Dec ${ix.centre[1] >= 0 ? "+" : ""}${ix.centre[1].toFixed(3)}°) · ` +
+    `${nbs.length} night-band${nbs.length > 1 ? "s" : ""} · ${n.toLocaleString("en-US")} alerts · ` +
+    `model ${ix.model.join(", ")} at ${ix.score_cut}${cut} · schema ${ix.schema.join(", ")} · ${S.mode === "folder" ? "from your folder" : "published copy"}` +
+    (ix.missing && ix.missing.length ? ` · not in the folder: ${ix.missing.length} night-band${ix.missing.length > 1 ? "s" : ""} of the manifest` : ""));
+  $("about-text").textContent = `Every packet's fields, its truth row and its three cutouts are here ` +
+    `(${n.toLocaleString("en-US")} alerts, ${nc.toLocaleString("en-US")} with cutouts). ` +
+    (S.mode === "folder" ? `Read from your folder: the packets as hdps wrote them (cutouts at full precision) and truth.parquet. `
+      : `Cutout pixels are stored as 8-bit asinh codes about each plane's median; the values read back are within a small fraction of the noise. `) +
+    `Real: an injected source whose true change is at least 3 times the candidate's PSF flux ` +
+    `error; bogus: a constant star or nothing; below 3σ: an injected source changing less than that.`;
+}
+
+/* ---------- filters and list ---------- */
+function chip(text, on, color, onClick) {
+  const b = document.createElement("button");
+  b.className = "chip"; b.type = "button"; b.setAttribute("aria-pressed", String(on));
+  b.innerHTML = (color ? `<span class="dot" style="--c: var(${color})"></span>` : "") + text;
+  b.addEventListener("click", () => { onClick(b); applyFilters(); });
+  return b;
+}
+function toggle(set, v, b) { set.has(v) ? set.delete(v) : set.add(v); b.setAttribute("aria-pressed", String(set.has(v))); }
+function buildFilters() {  // the parts that depend on the data set
+  const nbEl = $("f-nb"); nbEl.replaceChildren();
+  S.ix.nightbands.forEach((nb, k) => nbEl.append(chip(`${nbName(nb)} <span class="mono" style="color: var(--muted)">${nb.date.slice(5)}</span>`, true, null, (b) => toggle(F.nb, k, b))));
+  const lab = $("f-label"); lab.replaceChildren();
+  for (const [v, name, color] of LABELS) lab.append(chip(name, F.label.has(v), color, (b) => toggle(F.label, v, b)));
+  const cls = $("f-class"); cls.replaceChildren();
+  S.ix.classes.forEach((name, v) => cls.append(chip(name, F.cls.has(v), null, (b) => toggle(F.cls, v, b))));
+  const src = $("f-src"); src.replaceChildren(new Option("Any source", "all"), new Option("No injected source", "none"));
+  S.ix.sources.forEach((s, k) => { if (S.srcRows.has(k)) src.append(new Option(`${s.label} · ${s.kind}`, String(k))); });
+}
+function wireFilters() {  // once
+  $("f-score").addEventListener("input", (e) => { F.score = +e.target.value; $("f-score-v").textContent = F.score.toFixed(2); applyFilters(); });
+  $("f-src").addEventListener("change", (e) => { F.src = e.target.value; applyFilters(); });
+  $("f-verdict").addEventListener("change", (e) => { F.verdict = e.target.value; applyFilters(); });
+  $("f-cut").addEventListener("change", (e) => { F.cutOnly = e.target.checked; applyFilters(); });
+  let qt; $("f-q").addEventListener("input", (e) => { clearTimeout(qt); qt = setTimeout(() => { F.q = e.target.value.trim(); applyFilters(); }, 200); });
+  for (const [id, key] of [["s-t", "t"], ["s-mag", "mag"], ["s-score", "score"]])
+    $(id).addEventListener("click", () => { S.sort = key; for (const x of ["s-t", "s-mag", "s-score"]) $(x).setAttribute("aria-pressed", String(x === id)); applyFilters(); });
+}
+function matchQuery() {
+  const q = F.q.toLowerCase(); if (!q) return null;
+  if (/^\d{6,}$/.test(q)) { const e = Number(q); return (i) => S.c.epoch[i] === e; }
+  if (/^[0-9a-f]{4,}(-[0-9a-f]*)*$/.test(q) && !/^[tp]\d+$/.test(q)) {
+    if (!S.hex) { S.hex = new Array(S.N); for (let i = 0; i < S.N; i++) S.hex[i] = alertId(i); }
+    return (i) => S.hex[i].startsWith(q);
+  }
+  const ks = new Set(); S.ix.sources.forEach((s, k) => { if (s.label.toLowerCase() === q || (s.kind || "").toLowerCase().includes(q)) ks.add(k); });
+  return (i) => ks.has(S.c.src[i]);
+}
+function applyFilters() {
+  const c = S.c, out = [], q = matchQuery(), src = F.src === "all" ? null : F.src === "none" ? -1 : +F.src;
+  for (let i = 0; i < S.N; i++) {
+    if (!F.nb.has(S.nbOf[i]) || !F.label.has(c.label[i]) || !F.cls.has(c.cls[i])) continue;
+    if (c.score[i] < F.score) continue;
+    if (src !== null && (src === -1 ? c.src[i] >= 0 : c.src[i] !== src)) continue;
+    if (F.cutOnly && c.cut[i] < 0) continue;
+    if (F.verdict !== "all") {
+      const v = S.verdicts.get(alertId(i));
+      if (F.verdict === "marked" && !v) continue;
+      if (F.verdict === "unmarked" && v) continue;
+      if (F.verdict === "wrong" && (!v || v.verdict !== "wrong")) continue;
+    }
+    if (q && !q(i)) continue;
+    out.push(i);
+  }
+  const key = S.sort === "t" ? c.t : S.sort === "mag" ? c.mag : c.score;
+  const dir = S.sort === "score" ? -1 : 1;
+  out.sort((a, b) => dir * ((key[a] - key[b]) || (c.t[a] - c.t[b])));
+  S.rows = Int32Array.from(out);
+  const withCut = out.reduce((n, i) => n + (c.cut[i] >= 0), 0);
+  $("count").textContent = `${out.length.toLocaleString("en-US")} alerts shown · ${withCut.toLocaleString("en-US")} with cutouts`;
+  $("spacer").style.height = `${out.length * ROW_H}px`;
+  renderList(); drawSky();
+}
+function renderList() {
+  const list = $("list"), top = list.scrollTop, h = list.clientHeight;
+  const a = Math.max(0, Math.floor(top / ROW_H) - 8), b = Math.min(S.rows.length, Math.ceil((top + h) / ROW_H) + 8);
+  const frag = document.createDocumentFragment(), c = S.c;
+  for (let k = a; k < b; k++) {
+    const i = S.rows[k], s = srcOf(i), v = S.verdicts.size ? S.verdicts.get(alertId(i)) : null;
+    const el = document.createElement("div");
+    el.className = "row"; el.style.top = `${k * ROW_H}px`; el.dataset.i = i; el.setAttribute("role", "option");
+    el.setAttribute("aria-selected", String(i === S.sel));
+    const nb = S.ix.nightbands[S.nbOf[i]];
+    const what = s ? s.label : (S.ix.classes[c.cls[i]] || "?");
+    const icons = (v ? (v.verdict === "ok" ? "✓" : v.verdict === "wrong" ? "✗" : "?") : "");
+    el.innerHTML = `<span class="dot" style="--c: var(${labelOf(c.label[i])[2]})"></span><span>N${nb.night} ${hhmm(c.t[i])}</span>` +
+      `<span>${nb.band === "beta" ? "β" : "ρ"}</span><span>${fmt(c.mag[i])}</span><span>${fmt(c.score[i])}</span>` +
+      `<span class="src">${what}</span><span class="icons">${icons}</span>`;
+    frag.append(el);
+  }
+  for (const el of [...list.querySelectorAll(".row")]) el.remove();
+  list.append(frag);
+}
+$("list").addEventListener("scroll", () => requestAnimationFrame(renderList));
+$("list").addEventListener("click", (e) => { const r = e.target.closest(".row"); if (r) select(+r.dataset.i); });
+$("list").addEventListener("keydown", (e) => {
+  if (!["ArrowDown", "ArrowUp", "j", "k"].includes(e.key)) return;
+  e.preventDefault(); step(e.key === "ArrowDown" || e.key === "j" ? 1 : -1);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest("input, textarea, select, .list") || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (["ArrowDown", "j"].includes(e.key)) { e.preventDefault(); step(1); }
+  else if (["ArrowUp", "k"].includes(e.key)) { e.preventDefault(); step(-1); }
+});
+function step(d) {
+  if (!S.rows.length) return;
+  let k = S.rows.indexOf(S.sel); k = k < 0 ? 0 : Math.min(S.rows.length - 1, Math.max(0, k + d));
+  select(S.rows[k]);
+}
+function scrollToSel() {
+  const k = S.rows.indexOf(S.sel); if (k < 0) return;
+  const list = $("list"), y = k * ROW_H;
+  if (y < list.scrollTop || y + ROW_H > list.scrollTop + list.clientHeight) list.scrollTop = y - list.clientHeight / 2;
+}
+
+/* ---------- the selected alert ---------- */
+function groupOf(i) {
+  const s = S.c.src[i];
+  if (s >= 0) return S.srcRows.get(s);
+  const dx = S.c.dx[i], dy = S.c.dy[i], out = [];
+  const cx = Math.floor(dx / GROUP_R), cy = Math.floor(dy / GROUP_R);
+  for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+    for (const j of S.grid.get((cx + a) * 1e6 + cy + b) || []) if (Math.hypot(S.c.dx[j] - dx, S.c.dy[j] - dy) <= GROUP_R) out.push(j);
+  }
+  return Int32Array.from(out.sort((x, y) => S.c.t[x] - S.c.t[y]));
+}
+function select(i, initial = false) {
+  if (i < 0) { $("head").innerHTML = `<span class="empty">No alert matches the filters.</span>`; return; }
+  S.sel = i; S.group = groupOf(i);
+  const key = (S.c.src[i] >= 0 ? "s" + S.c.src[i] : "p" + i) + (S.lcX === "night" ? "n" + S.ix.nightbands[S.nbOf[i]].night : "");
+  if (key !== LCV.key) { LCV.view = null; LCV.key = key; }
+  renderHead(); renderFields(); renderCutouts(); drawLc(); drawSky(); renderVerdict(); renderList();
+  if (!initial) scrollToSel(); else requestAnimationFrame(scrollToSel);
+}
+function renderHead() {
+  const i = S.sel, c = S.c, s = srcOf(i), nb = S.ix.nightbands[S.nbOf[i]], [, lname, lcol] = labelOf(c.label[i]);
+  const id = alertId(i);
+  $("head").innerHTML = `<span class="pill big"><span class="dot" style="--c: var(${lcol})"></span>${lname}</span>` +
+    `<span class="pill">${S.ix.classes[c.cls[i]] || "no truth"}</span>` +
+    (s ? `<span class="pill">${s.label} · ${s.kind}</span>` : "") +
+    `<span class="pill">${nbName(nb)} · ${utcStr(c.t[i]).slice(0, 16)}</span>` +
+    `<div class="nav"><button class="btn" id="prev" title="Previous in the list (↑ or k)">↑ Prev</button>` +
+    `<button class="btn" id="next" title="Next in the list (↓ or j)">↓ Next</button></div>` +
+    `<div class="idline" style="flex-basis: 100%"><span class="eyebrow">alertId</span><span class="mono" id="aid">${id}</span>` +
+    `<button class="btn" id="copy">Copy</button></div>`;
+  $("prev").onclick = () => step(-1); $("next").onclick = () => step(1);
+  $("copy").onclick = () => {
+    (navigator.clipboard ? navigator.clipboard.writeText(id) : Promise.reject(new Error("no clipboard"))).then(() => { $("copy").textContent = "Copied"; },
+      () => { const r = document.createRange(); r.selectNodeContents($("aid")); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); });
+  };
+}
+function kv(el, rows) { el.innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join(""); }
+function renderFields() {
+  const i = S.sel, c = S.c, ix = S.ix, nb = ix.nightbands[S.nbOf[i]], s = srcOf(i);
+  const ra = ((ix.centre[0] + c.dx[i] / 3600 / Math.cos(ix.centre[1] * Math.PI / 180)) % 360 + 360) % 360;
+  const dec = ix.centre[1] + c.dy[i] / 3600;
+  const cutv = ix.score_cut_value;
+  const bar = `<div class="scorebar"><i style="width:${(100 * Math.max(0, Math.min(1, c.score[i]))).toFixed(1)}%"></i>` +
+    (cutv != null ? `<b style="left:calc(${(100 * cutv).toFixed(1)}% - 1px)" title="cut ${ix.score_cut}"></b>` : "") + `</div>`;
+  kv($("kv-det"), [
+    ["Time", utcStr(c.t[i])], ["Night", `${nb.night} (evening of ${nb.date}) · Moon ${nb.moon != null ? Math.round(100 * nb.moon) + "% lit" : "—"}`],
+    ["Band · exposure", `${nb.band} · ${c.exposure[i]}`], ["epochId", String(c.epoch[i])],
+    ["Camera · tanseg", `${c.camera[i]} · ${c.tanseg[i]}`], ["RA, Dec", `${ra.toFixed(6)}°, ${dec >= 0 ? "+" : ""}${dec.toFixed(6)}°`],
+    ["x, y (segment px)", `${fmt(c.x[i], 1)}, ${fmt(c.y[i], 1)}`],
+    ["PSF mag (diff)", `${fmt(c.mag[i], 3)} ± ${fmt(c.magErr[i], 3)}`],
+    ["PSF Δflux", `${fmtInt(c.flux[i])} ± ${fmtInt(c.fluxErr[i])} e⁻`], ["S/N (PSF)", fmt(c.snr[i], 1)],
+    ["PSF mag (science)", fmt(c.magSci[i], 3)], ["Limiting mag", fmt(c.limMag[i], 2)], ["Zero point", fmt(c.zp[i], 3)],
+    ["FWHM", `${fmt(c.fwhm[i], 2)} px`], ["Real/bogus score", `${fmt(c.score[i], 3)}${bar}`],
+  ]);
+  const pull = (c.flux[i] - c.tDiff[i]) / c.fluxErr[i];
+  const rows = [["Class", S.ix.classes[c.cls[i]] || "—"],
+    ["Label", `${labelOf(c.label[i])[1]} (${c.label[i]})`], ["Separation", `${fmt(c.tSep[i], 2)}″`],
+    ["True mag", fmt(c.tMag[i], 3)], ["True flux now · ref", `${fmtInt(c.tNow[i])} · ${fmtInt(c.tRef[i])} e⁻`],
+    ["True Δflux", `${fmtInt(c.tDiff[i])} e⁻`],
+    ["Measured / true Δflux", Number.isFinite(c.tDiff[i]) && c.tDiff[i] !== 0 ? fmt(c.flux[i] / c.tDiff[i], 3) : "—"],
+    ["(measured − true) / σ", fmt(pull, 2)]];
+  if (s) {
+    rows.push(["Source", `${s.label} · ${s.kind} (${s.generator}${s.engine ? "; " + s.engine : ""})`]);
+    if (s.model && s.model !== s.kind) rows.push(["Model", s.model]);
+    if (s.params) rows.push(["Parameters", s.params]);
+    if (s.z != null) rows.push(["Redshift", fmt(s.z, 4)]);
+    if (s.t0_bjd != null) rows.push(["t₀ (BJD)", fmt(s.t0_bjd, 4)]);
+    if (s.period != null) rows.push(["Period", `${fmt(s.period, 5)} d`]);
+    if (s.ebv != null) rows.push(["E(B−V)", fmt(s.ebv, 3)]);
+    if (s.distance_pc != null) rows.push(["Distance", `${fmtInt(s.distance_pc)} pc`]);
+    if (s.star) rows.push(["Library star", s.star]);
+  }
+  kv($("kv-truth"), rows);
+}
+
+/* ---------- cutouts ---------- */
+const PLANES = ["Science", "Difference", "Template"];
+const ATLAS = new Map();  // "<night-band>/<atlas>" -> Promise<{px, W}>; the most recent 16 kept
+function atlas(k, a) {
+  const key = `${k}/${a}`;
+  if (!ATLAS.has(key)) {
+    const at = S.ix.nightbands[k].atlases[a];
+    ATLAS.set(key, new Promise((ok, bad) => {
+      const img = new Image(); img.onload = () => ok(img); img.onerror = () => bad(new Error(at.file)); img.src = "/_blob/" + at.id;
+    }).then((img) => {
+      const cv = document.createElement("canvas"), W = img.naturalWidth, H = img.naturalHeight; cv.width = W; cv.height = H;
+      const g = cv.getContext("2d", { willReadFrequently: true }); g.drawImage(img, 0, 0);
+      const rgba = g.getImageData(0, 0, W, H).data, px = new Uint8Array(W * H);
+      for (let n = 0, o = 0; n < W * H; n++, o += 4) px[n] = rgba[o];
+      // the last pixel row holds 0..255: undo anything the browser did to the grey levels
+      const inv = new Int16Array(256).fill(-1); let same = true;
+      for (let v = 0; v < 256; v++) { const o = px[(H - 1) * W + v]; if (o !== v) same = false; if (inv[o] < 0) inv[o] = v; }
+      if (!same) {
+        for (let v = 1; v < 256; v++) if (inv[v] < 0) inv[v] = inv[v - 1];
+        for (let v = 254; v >= 0; v--) if (inv[v] < 0) inv[v] = inv[v + 1];
+        for (let n = 0; n < px.length; n++) px[n] = inv[px[n]];
+      }
+      return { px, W };
+    }));
+    if (ATLAS.size > 16) ATLAS.delete(ATLAS.keys().next().value);
+  }
+  return ATLAS.get(key);
+}
+async function planesOf(i) { return S.mode === "folder" ? folderPlanes(i) : atlasPlanes(i); }
+const PACKETS = new Map();  // packet file -> Promise<Map(alertId -> packet)>; the most recent 8 kept
+async function folderPlanes(i) {  // the packet's own cutouts, at full precision
+  const path = S.pfile[i];
+  if (!PACKETS.has(path)) {
+    PACKETS.set(path, readAvro(S.files.get(path)).then((ps) => new Map(ps.map((p) => [String(p.alertId), p]))));
+    if (PACKETS.size > 8) PACKETS.delete(PACKETS.keys().next().value);
+  }
+  const p = (await PACKETS.get(path)).get(alertId(i));
+  return [p.cutoutScience, p.cutoutDifference, p.cutoutTemplate].map(planeFromBytes);
+}
+function planeFromBytes(u8) {  // 32 x 32 little-endian float32 -> values, median, robust sigma, asinh display codes
+  const dv = new DataView(u8.buffer, u8.byteOffset, 4096), v = new Float32Array(1024), q = new Uint8Array(1024).fill(255);
+  for (let k = 0; k < 1024; k++) v[k] = dv.getFloat32(4 * k, true);
+  const ok = Array.from(v).filter(Number.isFinite).sort((a, b) => a - b);
+  if (!ok.length) return { v, q, m: 0, s: 1 };
+  const m = ok[ok.length >> 1], dev = ok.map((x) => Math.abs(x - m)).sort((a, b) => a - b);
+  const s = Math.max(1.4826 * dev[dev.length >> 1], 1e-3 * (ok[ok.length - 1] - ok[0]), 1e-6);
+  const a = new Float32Array(1024); let lo = Infinity, hi = -Infinity;
+  for (let k = 0; k < 1024; k++) if (Number.isFinite(v[k])) { a[k] = Math.asinh((v[k] - m) / s); lo = Math.min(lo, a[k]); hi = Math.max(hi, a[k]); }
+  for (let k = 0; k < 1024; k++) if (Number.isFinite(v[k])) q[k] = hi > lo ? Math.round(254 * (a[k] - lo) / (hi - lo)) : 0;
+  return { v, q, m, s };
+}
+async function atlasPlanes(i) {  // the three planes' values (e-) and 8-bit codes, from the published atlases
+  const A = S.ix.atlas, ci = S.c.cut[i], slot = ci % A.per_atlas, br = Math.floor(slot / A.per_row), bc = slot % A.per_row;
+  const { px, W } = await atlas(S.nbOf[i], Math.floor(ci / A.per_atlas));
+  return [0, 1, 2].map((j) => {
+    const [m, s, lo, hi] = S.c.qp.subarray(12 * i + 4 * j, 12 * i + 4 * j + 4), q = new Uint8Array(1024), v = new Float32Array(1024);
+    for (let r = 0; r < 32; r++) for (let col = 0; col < 32; col++) {
+      const x = px[(br * 32 + r) * W + bc * 96 + 32 * j + col]; q[r * 32 + col] = x;
+      v[r * 32 + col] = x === 255 ? NaN : m + s * Math.sinh(lo + x * (hi - lo) / 254);
+    }
+    return { v, q, m, s };
+  });
+}
+function pct(arr, f) { const a = Array.from(arr).filter(Number.isFinite).sort((x, y) => x - y); return a.length ? a[Math.min(a.length - 1, Math.floor(f * a.length))] : 0; }
+function hexRgb(h) { const n = parseInt(h.replace("#", ""), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function paint(canvas, plane, j) {
+  const img = new ImageData(32, 32), { v, q, s } = plane, d = img.data;
+  const neg = hexRgb("#2a78d6"), pos = hexRgb("#e34948"), mid = [242, 242, 240], nan = hexRgb(css("--surface-2") || "#888888");
+  let lo, hi, L;
+  if (j !== 1) {
+    if (S.stretch === "linear") { lo = pct(v, 0.01); hi = pct(v, 0.995); }
+    else if (S.stretch === "sigma") { lo = plane.m - 2 * s; hi = plane.m + 8 * s; }
+  } else {
+    L = S.stretch === "linear" ? pct(v.map(Math.abs), 0.995) : S.stretch === "sigma" ? 5 * s : pct(v.map(Math.abs), 1);
+    L = L || 1;
+  }
+  for (let r = 0; r < 32; r++) for (let col = 0; col < 32; col++) {
+    const k = r * 32 + col, o = ((31 - r) * 32 + col) * 4;  // row 0 is south: north up
+    let rgb;
+    if (!Number.isFinite(v[k])) rgb = nan;
+    else if (j !== 1) {
+      const g = S.stretch === "asinh" ? q[k] / 254 : Math.min(1, Math.max(0, (v[k] - lo) / (hi - lo || 1)));
+      const y = Math.round(255 * g); rgb = [y, y, y];
+    } else {
+      let x = S.stretch === "asinh" ? Math.asinh(v[k] / s) / Math.asinh(L / s) : v[k] / L;
+      x = Math.max(-1, Math.min(1, x));
+      const e = x < 0 ? neg : pos, a = Math.abs(x);
+      rgb = [0, 1, 2].map((n) => Math.round(mid[n] + (e[n] - mid[n]) * a));
+    }
+    d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = 255;
+  }
+  const off = document.createElement("canvas"); off.width = off.height = 32; off.getContext("2d").putImageData(img, 0, 0);
+  const r = canvas.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1), W = Math.max(64, Math.round(r.width * dpr));
+  canvas.width = canvas.height = W;
+  const g = canvas.getContext("2d"); g.imageSmoothingEnabled = false; g.drawImage(off, 0, 0, W, W);
+  const px = W / 32, cx = 16 * px, cy = 15 * px;  // the candidate's pixel: [row 16, col 16]
+  g.lineWidth = Math.max(2, px / 4);
+  for (const [stroke, w] of [["rgba(0,0,0,0.75)", g.lineWidth + 2], ["#ffffff", g.lineWidth]]) {
+    g.strokeStyle = stroke; g.lineWidth = w; g.beginPath();
+    g.moveTo(cx - 2.2 * px, cy + px / 2); g.lineTo(cx - 0.7 * px, cy + px / 2);
+    g.moveTo(cx + 1.7 * px, cy + px / 2); g.lineTo(cx + 3.2 * px, cy + px / 2);
+    g.moveTo(cx + px / 2, cy - 2.2 * px); g.lineTo(cx + px / 2, cy - 0.7 * px);
+    g.moveTo(cx + px / 2, cy + 1.7 * px); g.lineTo(cx + px / 2, cy + 3.2 * px); g.stroke();
+  }
+}
+let cutToken = 0;
+async function renderCutouts() {
+  const i = S.sel, wrap = $("cutwrap"), token = ++cutToken;
+  if (S.c.cut[i] < 0) { wrap.innerHTML = `<div class="nocut">This packet carries no cutouts.</div>`; $("readout").textContent = ""; S.planes = null; return; }
+  if (!wrap.querySelector(".cutouts")) {
+    wrap.innerHTML = `<div class="cutouts">` + PLANES.map((p, j) => `<figure class="cut" style="margin:0"><figcaption class="cap"><span>${p}</span>` +
+      `<span class="mono" id="cr${j}"></span></figcaption><div class="cutbox"><canvas id="cv${j}" width="32" height="32" ` +
+      `aria-label="${p} cutout"></canvas></div></figure>`).join("") + `</div>`;
+    for (let j = 0; j < 3; j++) { const cv = $(`cv${j}`); cv.addEventListener("mousemove", (e) => readPixel(e, cv)); cv.addEventListener("mouseleave", () => readPixel(null)); }
+  }
+  let planes;
+  try { planes = await planesOf(i); } catch (e) { if (token === cutToken) $("readout").textContent = `The cutout image ${e.message} could not be loaded.`; return; }
+  if (token !== cutToken) return;
+  S.planes = planes;
+  S.planes.forEach((p, j) => { paint($(`cv${j}`), p, j); $(`cr${j}`).textContent = `σ ${p.s.toFixed(1)}`; });
+  readPixel(null);
+}
+function readPixel(e, cv) {
+  if (!S.planes) return;
+  if (!e) { $("readout").textContent = "Point at a pixel to read its value (e⁻ per sensor-pixel area: hdps tiles keep surface brightness)."; return; }
+  const r = cv.getBoundingClientRect(), col = Math.floor(32 * (e.clientX - r.left) / r.width), dr = Math.floor(32 * (e.clientY - r.top) / r.height);
+  if (col < 0 || col > 31 || dr < 0 || dr > 31) return;
+  const row = 31 - dr, k = row * 32 + col;
+  $("readout").textContent = `pixel ${col - 16 >= 0 ? "+" : ""}${col - 16}, ${row - 16 >= 0 ? "+" : ""}${row - 16} from the candidate · ` +
+    PLANES.map((p, j) => `${p.toLowerCase()} ${Number.isFinite(S.planes[j].v[k]) ? S.planes[j].v[k].toFixed(1) : "off segment"}`).join(" · ");
+}
+$("stretch").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return; S.stretch = b.dataset.v;
+  for (const x of $("stretch").children) x.setAttribute("aria-pressed", String(x === b));
+  if (S.planes) S.planes.forEach((p, j) => paint($(`cv${j}`), p, j));
+});
+
+/* ---------- charts ---------- */
+function fitCanvas(cv) {
+  const r = cv.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
+  const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, r.width, r.height);
+  return { g, W: r.width, H: r.height };
+}
+function niceStep(range, n) { const raw = range / n, p = 10 ** Math.floor(Math.log10(raw)), f = raw / p; return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * p; }
+
+/* ---------- light curve ---------- */
+const LCV = { view: null, key: null, pts: [], frame: null, drag: null,
+  show: { beta_m: true, rho_m: true, beta_t: true, rho_t: true, total: false, err: true, resid: true } };
+const isBeta = (j) => S.ix.nightbands[S.nbOf[j]].band === "beta";
+function lcRows() {
+  let rows = Array.from(S.group || []);
+  if (S.lcX === "night") { const n = S.ix.nightbands[S.nbOf[S.sel]].night; rows = rows.filter((j) => S.ix.nightbands[S.nbOf[j]].night === n); }
+  return rows;
+}
+function lcVal(j) {  // measured, its error, the truth (the true flux change; in mag with the alert's zero point), the true total
+  const c = S.c, mag = S.lcY === "mag";
+  return { m: mag ? c.mag[j] : c.flux[j], e: mag ? c.magErr[j] : c.fluxErr[j],
+    t: mag ? (c.tDiff[j] > 0 ? c.zp[j] - 2.5 * Math.log10(c.tDiff[j]) : NaN) : c.tDiff[j], tot: mag ? c.tMag[j] : c.tNow[j] };
+}
+function yLabel(y, step, mag) {
+  if (Math.abs(y) < step * 1e-6) y = 0;
+  if (mag) return y.toFixed(step < 0.01 ? 3 : step < 0.1 ? 2 : 1);
+  return Math.abs(y) >= 1e4 ? `${(y / 1e3).toFixed(step >= 1e4 ? 0 : 1)}k` : y.toFixed(step < 1 ? 1 : 0);
+}
+function xTicks(t0, t1) {
+  const hours = (t1 - t0) * 24, st = [1 / 60, 2 / 60, 5 / 60, 10 / 60, 0.25, 0.5, 1, 2, 3, 6, 12, 24, 48].find((h) => hours / h <= 7) || 48;
+  const d = st / 24, out = [];
+  for (let k = Math.ceil(t0 / d); k * d <= t1; k++) out.push(k * d);
+  return { ticks: out, st };
+}
+function drawLc(box) {
+  const cv = $("lc"), { g, W, H } = fitCanvas(cv), c = S.c, i = S.sel, sh = LCV.show, mag = S.lcY === "mag";
+  const s = srcOf(i);
+  $("lc-title").textContent = s ? `Light curve · ${s.label} · ${s.kind}` : `Light curve · alerts within ${GROUP_R}″`;
+  const rows = lcRows(); LCV.pts = []; LCV.frame = null;
+  if (!rows.length) { $("lc-cap").textContent = ""; return; }
+  const on = (j, kind) => sh[(isBeta(j) ? "beta_" : "rho_") + kind];
+  const V = new Map(rows.map((j) => [j, lcVal(j)]));
+  let t0, t1, y0, y1;
+  if (LCV.view) { t0 = LCV.view.t0; t1 = LCV.view.t1; }
+  else {
+    t0 = Infinity; t1 = -Infinity; for (const j of rows) { t0 = Math.min(t0, c.t[j]); t1 = Math.max(t1, c.t[j]); }
+    const tp = Math.max(0.01, 0.03 * (t1 - t0)); t0 -= tp; t1 += tp;
+  }
+  const inX = (j) => c.t[j] >= t0 && c.t[j] <= t1;
+  if (LCV.view && LCV.view.y0 != null) { y0 = LCV.view.y0; y1 = LCV.view.y1; }
+  else {
+    y0 = Infinity; y1 = -Infinity;
+    const take = (y) => { if (Number.isFinite(y)) { y0 = Math.min(y0, y); y1 = Math.max(y1, y); } };
+    for (const j of rows) {
+      if (!inX(j)) continue; const v = V.get(j);
+      if (on(j, "m")) { take(v.m); if (sh.err) { take(v.m - v.e); take(v.m + v.e); } }
+      if (on(j, "t")) take(v.t);
+      if (sh.total && (on(j, "m") || on(j, "t"))) take(v.tot);
+    }
+    if (!Number.isFinite(y0)) { y0 = 0; y1 = 1; }
+    if (!mag) { y0 = Math.min(y0, 0); y1 = Math.max(y1, 0); }
+    if (!(y1 > y0)) { y0 -= 0.5; y1 += 0.5; }
+    const pad = 0.06 * (y1 - y0); y0 -= pad; y1 += pad;
+  }
+  const P = { l: 62, r: 12, t: 10, b: 30 }, bottom = H - P.b, mainB = sh.resid ? P.t + 0.7 * (bottom - P.t) : bottom, resT = mainB + 12;
+  const X = (t) => P.l + (t - t0) / (t1 - t0) * (W - P.l - P.r);
+  const Y = (y) => mag ? P.t + (y - y0) / (y1 - y0) * (mainB - P.t) : mainB - (y - y0) / (y1 - y0) * (mainB - P.t);
+  let r1 = 1;
+  if (sh.resid) {
+    const rs = [];
+    for (const j of rows) { if (!inX(j) || !on(j, "m")) continue; const v = V.get(j), r = v.m - v.t; if (Number.isFinite(r)) rs.push(Math.abs(r) + (sh.err && Number.isFinite(v.e) ? v.e : 0)); }
+    rs.sort((a, b) => a - b); r1 = 1.1 * ((rs.length ? rs[Math.min(rs.length - 1, Math.floor(0.98 * rs.length))] : 1) || 1);
+  }
+  const r0 = -r1, R = (r) => mag ? resT + (r - r0) / (r1 - r0) * (bottom - resT) : bottom - (r - r0) / (r1 - r0) * (bottom - resT);
+  LCV.frame = { P, W, H, t0, t1, y0, y1, mainB, resT, bottom, mag };
+  const line = css("--line"), axis = css("--axis"), muted = css("--muted"), ink2 = css("--ink-2"), halo = css("--halo"), sel = css("--sel");
+  const colB = css("--beta"), colR = css("--rho");
+  g.font = `11px ${css("--mono")}`; g.lineWidth = 1; g.fillStyle = muted; g.textAlign = "right"; g.textBaseline = "middle";
+  const ys = niceStep(y1 - y0, 5);
+  for (let k = Math.ceil(Math.min(y0, y1) / ys); k * ys <= Math.max(y0, y1); k++) {
+    const py = Math.round(Y(k * ys)) + 0.5; g.strokeStyle = line; g.beginPath(); g.moveTo(P.l, py); g.lineTo(W - P.r, py); g.stroke(); g.fillText(yLabel(k * ys, ys, mag), P.l - 6, py);
+  }
+  if (sh.resid) {
+    const rst = niceStep(r1 - r0, 3);
+    for (let k = Math.ceil(r0 / rst); k * rst <= r1; k++) {
+      const py = Math.round(R(k * rst)) + 0.5; g.strokeStyle = k === 0 ? axis : line; g.beginPath(); g.moveTo(P.l, py); g.lineTo(W - P.r, py); g.stroke(); g.fillText(yLabel(k * rst, rst, mag), P.l - 6, py);
+    }
+  }
+  const { ticks, st } = xTicks(t0, t1);
+  g.textAlign = "center"; g.textBaseline = "top";
+  for (const t of ticks) {
+    const px = Math.round(X(t)) + 0.5, iso = utc(t).toISOString(), hm = iso.slice(11, 16);
+    g.strokeStyle = line; g.beginPath(); g.moveTo(px, P.t); g.lineTo(px, bottom); g.stroke();
+    g.fillText(st >= 24 || hm === "00:00" ? utc(t).toUTCString().slice(5, 11) : hm, px, bottom + 6);
+  }
+  g.save(); g.fillStyle = ink2; g.textAlign = "center"; g.textBaseline = "middle"; g.translate(13, (P.t + mainB) / 2); g.rotate(-Math.PI / 2);
+  g.fillText(mag ? "mag (difference)" : "Δflux (e⁻)", 0, 0); g.restore();
+  if (sh.resid) { g.save(); g.fillStyle = ink2; g.textAlign = "center"; g.textBaseline = "middle"; g.translate(13, (resT + bottom) / 2); g.rotate(-Math.PI / 2); g.fillText("meas − true", 0, 0); g.restore(); }
+  g.strokeStyle = axis; g.beginPath();
+  g.moveTo(P.l + 0.5, P.t); g.lineTo(P.l + 0.5, mainB); g.moveTo(P.l, mainB + 0.5); g.lineTo(W - P.r, mainB + 0.5);
+  if (sh.resid) { g.moveTo(P.l + 0.5, resT); g.lineTo(P.l + 0.5, bottom); g.moveTo(P.l, bottom + 0.5); g.lineTo(W - P.r, bottom + 0.5); }
+  g.stroke();
+  const mark = (x, y, beta, r) => { g.beginPath(); if (beta) g.arc(x, y, r, 0, 2 * Math.PI); else g.rect(x - r, y - r, 2 * r, 2 * r); };
+  // main panel
+  g.save(); g.beginPath(); g.rect(P.l, P.t, W - P.l - P.r, mainB - P.t); g.clip();
+  if (!mag) { const z = Math.round(Y(0)) + 0.5; g.strokeStyle = axis; g.beginPath(); g.moveTo(P.l, z); g.lineTo(W - P.r, z); g.stroke(); }
+  if (sh.total) {
+    g.globalAlpha = 0.7; g.lineWidth = 1.5;
+    for (const j of rows) { if (!on(j, "m") && !on(j, "t")) continue; const v = V.get(j); if (!Number.isFinite(v.tot)) continue;
+      const x = X(c.t[j]), y = Y(v.tot); g.strokeStyle = isBeta(j) ? colB : colR; g.beginPath(); g.moveTo(x - 4.5, y); g.lineTo(x + 4.5, y); g.stroke(); }
+    g.globalAlpha = 1; g.lineWidth = 1;
+  }
+  for (const beta of [true, false]) {
+    if (!sh[beta ? "beta_t" : "rho_t"]) continue;
+    g.strokeStyle = beta ? colB : colR; g.globalAlpha = 0.4; g.beginPath(); let prev = null;
+    for (const j of rows) {
+      if (isBeta(j) !== beta) continue; const v = V.get(j); if (!Number.isFinite(v.t)) { prev = null; continue; }
+      const x = X(c.t[j]), y = Y(v.t); if (prev !== null && c.t[j] - prev < 0.05) g.lineTo(x, y); else g.moveTo(x, y); prev = c.t[j];
+    }
+    g.stroke(); g.globalAlpha = 1; g.lineWidth = 1.3;
+    for (const j of rows) { if (isBeta(j) !== beta) continue; const v = V.get(j); if (!Number.isFinite(v.t)) continue;
+      const x = X(c.t[j]), y = Y(v.t); mark(x, y, beta, 3.6); g.stroke(); LCV.pts.push([x, y, j, "t"]); }
+    g.lineWidth = 1;
+  }
+  for (const j of rows) {
+    if (!on(j, "m")) continue; const v = V.get(j); if (!Number.isFinite(v.m)) continue;
+    const beta = isBeta(j), x = X(c.t[j]), y = Y(v.m), col = beta ? colB : colR;
+    if (sh.err && Number.isFinite(v.e)) { g.strokeStyle = col; g.beginPath(); g.moveTo(x, Y(v.m - v.e)); g.lineTo(x, Y(v.m + v.e)); g.stroke(); }
+    g.fillStyle = col; g.strokeStyle = halo; g.lineWidth = 1.5; mark(x, y, beta, beta ? 3.2 : 3); g.fill(); g.stroke(); g.lineWidth = 1;
+    LCV.pts.push([x, y, j, "m"]);
+  }
+  const vi = V.get(i);
+  if (vi && Number.isFinite(vi.m) && on(i, "m")) { g.strokeStyle = sel; g.lineWidth = 2; g.beginPath(); g.arc(X(c.t[i]), Y(vi.m), 7.5, 0, 2 * Math.PI); g.stroke(); g.lineWidth = 1; }
+  g.restore();
+  // residual panel
+  if (sh.resid) {
+    g.save(); g.beginPath(); g.rect(P.l, resT, W - P.l - P.r, bottom - resT); g.clip();
+    for (const j of rows) {
+      if (!on(j, "m")) continue; const v = V.get(j), r = v.m - v.t; if (!Number.isFinite(r)) continue;
+      const beta = isBeta(j), x = X(c.t[j]), y = R(r), col = beta ? colB : colR;
+      if (sh.err && Number.isFinite(v.e)) { g.strokeStyle = col; g.beginPath(); g.moveTo(x, R(r - v.e)); g.lineTo(x, R(r + v.e)); g.stroke(); }
+      g.fillStyle = col; g.strokeStyle = halo; g.lineWidth = 1.2; mark(x, y, beta, 2.6); g.fill(); g.stroke(); g.lineWidth = 1;
+      LCV.pts.push([x, y, j, "r"]);
+    }
+    if (vi && on(i, "m") && Number.isFinite(vi.m - vi.t)) { g.strokeStyle = sel; g.lineWidth = 2; g.beginPath(); g.arc(X(c.t[i]), R(vi.m - vi.t), 6, 0, 2 * Math.PI); g.stroke(); g.lineWidth = 1; }
+    g.restore();
+  }
+  if (box) { g.strokeStyle = sel; g.setLineDash([4, 3]); g.strokeRect(Math.min(box[0], box[2]), Math.min(box[1], box[3]), Math.abs(box[2] - box[0]), Math.abs(box[3] - box[1])); g.setLineDash([]); }
+  const shown = rows.filter((j) => inX(j) && on(j, "m")), nb = shown.filter(isBeta).length, ratio = [], pulls = [];
+  for (const j of shown) if (c.label[j] === 1 && Number.isFinite(c.tDiff[j]) && c.tDiff[j] !== 0) { ratio.push(c.flux[j] / c.tDiff[j]); pulls.push((c.flux[j] - c.tDiff[j]) / c.fluxErr[j]); }
+  const med = (a) => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[b.length >> 1] : NaN; };
+  $("lc-cap").textContent = `Shown: ${shown.length} measured (${nb} β, ${shown.length - nb} ρ) of ${rows.length} alerts` +
+    (ratio.length ? ` · real ones: median measured / true Δflux ${med(ratio).toFixed(3)}, median (measured − true) / σ ${med(pulls).toFixed(2)}` : "") +
+    (mag ? " · truth in mag: the true Δflux through each alert's zero point" : "") + ".";
+}
+function nearestPt(pts, x, y, r) { let best = null, bd = r * r; for (const p of pts) { const d = (p[0] - x) ** 2 + (p[1] - y) ** 2; if (d < bd) { bd = d; best = p; } } return best; }
+function tipText(j) {
+  const c = S.c, s = srcOf(j), nb = S.ix.nightbands[S.nbOf[j]];
+  return `${labelOf(c.label[j])[1]} · ${s ? s.label : S.ix.classes[c.cls[j]]} · ${nbName(nb)} ${hhmm(c.t[j])}\nmag ${fmt(c.mag[j])}  score ${fmt(c.score[j])}`;
+}
+function lcTip(p) {
+  const j = p[2], c = S.c, v = lcVal(j), mag = S.lcY === "mag", nb = S.ix.nightbands[S.nbOf[j]];
+  const f = (x) => Number.isFinite(x) ? (mag ? x.toFixed(3) : Math.round(x).toLocaleString("en-US")) : "—";
+  const r = v.m - v.t, z = r / v.e;
+  return `${nbName(nb)} ${utcStr(c.t[j]).slice(11, 19)} UTC · ${labelOf(c.label[j])[1]}\n` +
+    `measured ${f(v.m)} ± ${f(v.e)}   true ${f(v.t)}\nmeas − true ${f(r)} (${Number.isFinite(z) ? z.toFixed(1) : "—"}σ)   score ${fmt(c.score[j])}`;
+}
+function showTip(tip, box, p, text) {
+  if (!p) { tip.hidden = true; return; }
+  tip.hidden = false; tip.textContent = text; tip.style.whiteSpace = "pre";
+  const bw = box.clientWidth, tw = tip.offsetWidth;
+  tip.style.left = `${Math.min(bw - tw - 4, Math.max(4, p[0] + 12))}px`; tip.style.top = `${Math.max(4, p[1] - 52)}px`;
+}
+function lcData(px, py) {
+  const f = LCV.frame; py = Math.min(Math.max(py, f.P.t), f.mainB);
+  const t = f.t0 + (px - f.P.l) / (f.W - f.P.l - f.P.r) * (f.t1 - f.t0);
+  const y = f.mag ? f.y0 + (py - f.P.t) / (f.mainB - f.P.t) * (f.y1 - f.y0) : f.y0 + (f.mainB - py) / (f.mainB - f.P.t) * (f.y1 - f.y0);
+  return { t, y };
+}
+const lc = $("lc");
+lc.addEventListener("pointerdown", (e) => {
+  if (!LCV.frame) return; const r = lc.getBoundingClientRect();
+  LCV.drag = { x: e.clientX - r.left, y: e.clientY - r.top, pan: e.shiftKey, moved: false, f: { ...LCV.frame } }; lc.setPointerCapture(e.pointerId);
+});
+lc.addEventListener("pointermove", (e) => {
+  const r = lc.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top, d = LCV.drag;
+  if (d) {
+    if (Math.abs(px - d.x) + Math.abs(py - d.y) > 4) d.moved = true;
+    if (!d.moved) return;
+    $("lc-tip").hidden = true;
+    if (d.pan) {
+      const f = d.f, dt = (px - d.x) / (f.W - f.P.l - f.P.r) * (f.t1 - f.t0), dy = (py - d.y) / (f.mainB - f.P.t) * (f.y1 - f.y0) * (f.mag ? 1 : -1);
+      LCV.view = { t0: f.t0 - dt, t1: f.t1 - dt, y0: f.y0 - dy, y1: f.y1 - dy }; requestAnimationFrame(() => drawLc());
+    } else requestAnimationFrame(() => drawLc([d.x, d.y, px, py]));
+    return;
+  }
+  const p = nearestPt(LCV.pts, px, py, 10); showTip($("lc-tip"), lc.parentElement, p, p ? lcTip(p) : "");
+});
+lc.addEventListener("pointerup", (e) => {
+  const d = LCV.drag; LCV.drag = null; if (!d || !LCV.frame) return;
+  const r = lc.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+  if (!d.moved) { const p = nearestPt(LCV.pts.filter((q) => q[3] !== "t"), px, py, 10) || nearestPt(LCV.pts, px, py, 10); if (p) select(p[2]); return; }
+  if (d.pan) return;
+  const f = LCV.frame, a = lcData(Math.min(d.x, px), Math.min(d.y, py)), b = lcData(Math.max(d.x, px), Math.max(d.y, py));
+  const wide = Math.abs(px - d.x) > 6, tall = Math.abs(py - d.y) > 6 && Math.min(d.y, py) < f.mainB;
+  const keepY = LCV.view && LCV.view.y0 != null;
+  LCV.view = { t0: wide ? a.t : f.t0, t1: wide ? b.t : f.t1,
+    y0: tall ? Math.min(a.y, b.y) : keepY ? f.y0 : null, y1: tall ? Math.max(a.y, b.y) : keepY ? f.y1 : null };
+  drawLc();
+});
+lc.addEventListener("pointerleave", () => { if (!LCV.drag) $("lc-tip").hidden = true; });
+lc.addEventListener("wheel", (e) => {
+  const f = LCV.frame; if (!f) return; e.preventDefault();
+  const r = lc.getBoundingClientRect(), at = lcData(e.clientX - r.left, e.clientY - r.top), k = Math.exp((e.deltaY || e.deltaX) * 0.0015);
+  const v = { t0: f.t0, t1: f.t1, y0: LCV.view && LCV.view.y0 != null ? f.y0 : null, y1: LCV.view && LCV.view.y0 != null ? f.y1 : null };
+  if (e.shiftKey) { v.y0 = at.y - (at.y - f.y0) * k; v.y1 = at.y + (f.y1 - at.y) * k; }
+  else { v.t0 = at.t - (at.t - f.t0) * k; v.t1 = at.t + (f.t1 - at.t) * k; }
+  LCV.view = v; requestAnimationFrame(() => drawLc());
+}, { passive: false });
+lc.addEventListener("dblclick", () => { LCV.view = null; drawLc(); });
+$("lc-reset").addEventListener("click", () => { LCV.view = null; drawLc(); });
+$("lc-show").addEventListener("click", (e) => {
+  const b = e.target.closest(".chip"); if (!b) return; const k = b.dataset.k;
+  LCV.show[k] = !LCV.show[k]; b.setAttribute("aria-pressed", String(LCV.show[k])); drawLc();
+});
+for (const [id, key] of [["lc-y", "lcY"], ["lc-x", "lcX"]]) $(id).addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return; S[key] = b.dataset.v; LCV.view = null;
+  for (const x of $(id).children) x.setAttribute("aria-pressed", String(x === b)); drawLc();
+});
+
+/* ---------- sky ---------- */
+const SKY = { cx: 0, cy: 0, s: 0, drag: null, moved: false };
+function skyFit() {
+  const c = S.c; let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (let i = 0; i < S.N; i++) { x0 = Math.min(x0, c.dx[i]); x1 = Math.max(x1, c.dx[i]); y0 = Math.min(y0, c.dy[i]); y1 = Math.max(y1, c.dy[i]); }
+  const r = $("sky").getBoundingClientRect();
+  SKY.cx = (x0 + x1) / 2; SKY.cy = (y0 + y1) / 2; SKY.s = Math.min(r.width / ((x1 - x0) * 1.08 || 1), r.height / ((y1 - y0) * 1.08 || 1));
+}
+const sx = (dx, W) => W / 2 - (dx - SKY.cx) * SKY.s;  // east to the left
+const sy = (dy, H) => H / 2 - (dy - SKY.cy) * SKY.s;
+function drawSky() {
+  if (!S.N) return;
+  if (!SKY.s) skyFit();
+  const cv = $("sky"), { g, W, H } = fitCanvas(cv), c = S.c;
+  g.fillStyle = css("--surface-2"); g.fillRect(0, 0, W, H);
+  const stepAs = [30, 60, 120, 300, 600, 1200].find((v) => v * SKY.s > 55) || 1200;
+  g.strokeStyle = css("--line"); g.lineWidth = 1; g.font = `10.5px ${css("--mono")}`; g.fillStyle = css("--muted");
+  const xa = SKY.cx - W / 2 / SKY.s, xb = SKY.cx + W / 2 / SKY.s, ya = SKY.cy - H / 2 / SKY.s, yb = SKY.cy + H / 2 / SKY.s;
+  g.textAlign = "left"; g.textBaseline = "top";
+  for (let v = Math.ceil(xa / stepAs) * stepAs; v <= xb; v += stepAs) { const x = Math.round(sx(v, W)) + 0.5; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); g.fillText(`${(v / 60).toFixed(stepAs < 60 ? 1 : 0)}′`, x + 3, 3); }
+  g.textBaseline = "bottom";
+  for (let v = Math.ceil(ya / stepAs) * stepAs; v <= yb; v += stepAs) { const y = Math.round(sy(v, H)) + 0.5; g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); g.fillText(`${(v / 60).toFixed(stepAs < 60 ? 1 : 0)}′`, 3, y - 2); }
+  g.fillStyle = css("--ink-2"); g.textAlign = "right"; g.textBaseline = "bottom"; g.fillText("N ↑  E ←", W - 6, H - 4);
+  const col = { 1: css("--real"), 0: css("--bogus"), "-1": css("--below") };
+  g.globalAlpha = 0.55;
+  for (const l of [1, -1, 0]) {
+    g.fillStyle = col[l];
+    for (const i of S.rows) { if (c.label[i] !== l) continue; const x = sx(c.dx[i], W), y = sy(c.dy[i], H); if (x < -2 || y < -2 || x > W + 2 || y > H + 2) continue; g.fillRect(x - 1.2, y - 1.2, 2.4, 2.4); }
+  }
+  g.globalAlpha = 1;
+  if (S.sel >= 0) {
+    g.strokeStyle = css("--halo"); g.lineWidth = 1;
+    for (const i of S.group || []) { g.fillStyle = col[c.label[i]]; g.beginPath(); g.arc(sx(c.dx[i], W), sy(c.dy[i], H), 3.2, 0, 2 * Math.PI); g.fill(); g.stroke(); }
+    const x = sx(c.dx[S.sel], W), y = sy(c.dy[S.sel], H);
+    g.strokeStyle = css("--sel"); g.lineWidth = 2; g.beginPath(); g.arc(x, y, 9, 0, 2 * Math.PI); g.stroke();
+    g.beginPath(); g.moveTo(x - 16, y); g.lineTo(x - 11, y); g.moveTo(x + 11, y); g.lineTo(x + 16, y); g.moveTo(x, y - 16); g.lineTo(x, y - 11); g.moveTo(x, y + 11); g.lineTo(x, y + 16); g.stroke();
+  }
+}
+function skyNearest(px, py) {
+  const cv = $("sky"), W = cv.clientWidth, H = cv.clientHeight, c = S.c; let best = -1, bd = 64;
+  for (const i of S.rows) { const d = (sx(c.dx[i], W) - px) ** 2 + (sy(c.dy[i], H) - py) ** 2; if (d < bd) { bd = d; best = i; } }
+  return best;
+}
+const sky = $("sky");
+sky.addEventListener("wheel", (e) => {
+  e.preventDefault(); const r = sky.getBoundingClientRect(), W = r.width, H = r.height, px = e.clientX - r.left, py = e.clientY - r.top;
+  const ax = SKY.cx - (px - W / 2) / SKY.s, ay = SKY.cy + (H / 2 - py) / SKY.s, f = Math.exp(-e.deltaY * 0.0015);
+  SKY.s = Math.min(200, Math.max(0.05, SKY.s * f));
+  SKY.cx = ax + (px - W / 2) / SKY.s; SKY.cy = ay - (H / 2 - py) / SKY.s; requestAnimationFrame(drawSky);
+}, { passive: false });
+sky.addEventListener("pointerdown", (e) => { SKY.drag = [e.clientX, e.clientY, SKY.cx, SKY.cy]; SKY.moved = false; sky.setPointerCapture(e.pointerId); sky.style.cursor = "grabbing"; });
+sky.addEventListener("pointermove", (e) => {
+  const r = sky.getBoundingClientRect();
+  if (SKY.drag) {
+    const dx = e.clientX - SKY.drag[0], dy = e.clientY - SKY.drag[1];
+    if (Math.abs(dx) + Math.abs(dy) > 3) SKY.moved = true;
+    SKY.cx = SKY.drag[2] + dx / SKY.s; SKY.cy = SKY.drag[3] + dy / SKY.s; requestAnimationFrame(drawSky); $("sky-tip").hidden = true; return;
+  }
+  const px = e.clientX - r.left, py = e.clientY - r.top, i = skyNearest(px, py);
+  showTip($("sky-tip"), sky.parentElement, i >= 0 ? [px, py] : null, i >= 0 ? tipText(i) : "");
+});
+sky.addEventListener("pointerup", (e) => {
+  const r = sky.getBoundingClientRect(); sky.style.cursor = "grab";
+  if (SKY.drag && !SKY.moved) { const i = skyNearest(e.clientX - r.left, e.clientY - r.top); if (i >= 0) select(i); }
+  SKY.drag = null;
+});
+sky.addEventListener("pointerleave", () => { $("sky-tip").hidden = true; });
+$("sky-reset").addEventListener("click", () => { skyFit(); drawSky(); });
+
+/* ---------- verdicts (shared, read back by Claude) ---------- */
+async function initDb() {
+  const db = window.claude?.use ? await window.claude.use("db").catch(() => null) : null;
+  if (!db) return;
+  const user = await window.claude.use("user").catch(() => null);
+  S.uid = user ? await user.id().catch(() => null) : null;
+  const can = user ? await user.can("data.write").catch(() => null) : null;
+  S.canWrite = can !== false; S.db = db;
+  $("verdict").hidden = false;
+  db.collection("verdicts").onSnapshot((snap) => {
+    S.verdicts = new Map(snap.docs.map((d) => [d.id, d.data()]));
+    renderVerdict(); if (F.verdict !== "all") applyFilters(); else renderList();
+  }, () => { $("v-status").textContent = "Verdicts are unavailable in this view."; });
+  renderVerdict();
+}
+let pick = null;
+function renderVerdict() {
+  if (!S.db || S.sel < 0) return;
+  const v = S.verdicts.get(alertId(S.sel));
+  pick = v ? v.verdict : null;
+  for (const b of $("verdict").querySelectorAll(".vb .btn")) b.setAttribute("aria-pressed", String(b.dataset.v === pick));
+  $("v-note").value = v ? v.note || "" : "";
+  $("v-status").textContent = v ? `Saved ${new Date(v.at).toISOString().slice(0, 16).replace("T", " ")} UTC` + (v.by && v.by === S.uid ? " by you" : "") : "No verdict yet.";
+  for (const el of $("verdict").querySelectorAll("button, textarea")) el.disabled = !S.canWrite;
+  if (!S.canWrite) $("v-status").textContent += " You can read verdicts here but not save them.";
+}
+$("verdict").querySelector(".vb").addEventListener("click", (e) => {
+  const b = e.target.closest(".btn"); if (!b) return; pick = b.dataset.v;
+  for (const x of $("verdict").querySelectorAll(".vb .btn")) x.setAttribute("aria-pressed", String(x === b));
+  $("v-status").textContent = "Not saved yet.";
+});
+$("v-save").addEventListener("click", async () => {
+  if (!S.db || S.sel < 0) return;
+  if (!pick) { $("v-status").textContent = "Choose Looks right, Wrong or Unsure first."; return; }
+  const i = S.sel, nb = S.ix.nightbands[S.nbOf[i]], s = srcOf(i);
+  try {
+    await S.db.collection("verdicts").doc(alertId(i)).set({ verdict: pick, note: $("v-note").value.slice(0, 2000),
+      observation: nb.observation, band: nb.band, night: nb.night, source: s ? s.label : "", label: S.c.label[i],
+      truth_class: S.ix.classes[S.c.cls[i]] || "", at: new Date().toISOString(), by: S.uid || "" });
+    $("v-status").textContent = "Saved.";
+  } catch (err) { $("v-status").textContent = err && err.code === "quota_exceeded" ? "The verdict store is full." : "Not saved: you may not have permission to save verdicts here."; }
+});
+$("v-clear").addEventListener("click", async () => {
+  if (!S.db || S.sel < 0) return;
+  try { await S.db.collection("verdicts").doc(alertId(S.sel)).delete(); $("v-status").textContent = "Removed."; }
+  catch (err) { $("v-status").textContent = "Not removed."; }
+});
+
+/* ---------- theme and size ---------- */
+function redraw() { if (S.sel >= 0) { drawLc(); if (S.planes) S.planes.forEach((p, j) => paint($(`cv${j}`), p, j)); } drawSky(); renderList(); }
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redraw);
+new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(redraw, 120); });
+start();
+</script>

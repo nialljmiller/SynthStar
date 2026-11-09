@@ -71,9 +71,82 @@ def _fake_valkey():
     worker.create_valkey_pool = lambda *a, **k: fakeredis.FakeRedis(server=server).connection_pool
 
 
+def _physical_gpus():
+    """The machine's physical GPU count (nvidia-smi); 0 on a CPU-only host."""
+    import subprocess
+
+    try:
+        out = subprocess.run(["nvidia-smi", "-L"], capture_output=True, text=True, timeout=10)
+        return sum(1 for line in out.stdout.splitlines() if line.strip().startswith("GPU "))
+    except Exception:
+        return 0
+
+
+def _actor_setup():
+    """worker_process_setup_hook: runs once in each Ray worker actor process at startup. Point hdps's valkey at an
+    in-process fakeredis (no external valkey server for an offline run) and register the simulation's
+    TrueCalibrationTask so the actor can build it from the task chain. Referenced by import path, so it runs in the
+    actor, not the driver."""
+    try:
+        _fake_valkey()
+    except Exception:
+        pass
+    try:
+        from mesa_argus import true_calibration
+
+        true_calibration.register()
+    except Exception:
+        pass
+
+
 def run(obs, raw_dir, out_dir, reference_dir=None, stop_after=None, worker_id="mesa_argus", timeout_s=None):
-    """Every raw frame in raw_dir through hdps's worker; products and coadds into out_dir (hdps's layout). Returns
-    dict(processed, failed, coadds, alerts)."""
+    """Every raw frame in raw_dir through hdps's real Orchestrator (the path `hdps batch process` runs: one Ray
+    worker actor, the [[hdps.tasks]] chain through hdps's PipelinedExecutor, coadds and products into out_dir).
+    Alert packets are written as per-exposure Avro files by AlertVettingTask itself (emit_avro), as production would
+    stream them to Kafka. Returns dict(processed, failed, coadds, alerts). No hdps internals are touched: the alert
+    sink and the no-bundle classifier are selected through task config."""
+    import ray
+    from hdps.orchestrate.config import CoaddConfig, OrchestratorConfig, OutputConfig
+    from hdps.orchestrate.orchestrator import Orchestrator
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    co = obs["hdps"]["coadd"]
+    tcfgs = task_configs(obs, stop_after, reference_dir, out_dir)
+    for c in tcfgs:  # the alert sink, wired through config: per-exposure Avro files in place of Kafka
+        if c["type"] == "AlertVettingTask":
+            c["config"]["emit_avro"] = True
+            c["config"]["avro_dir"] = str(out_dir / "alerts")
+    cfg = OrchestratorConfig(
+        cameras=[],  # discovered from the frames (plan_batch)
+        task_configs=tcfgs,
+        coadd=CoaddConfig(strategy=co["strategy"], clip_kappa=co["clip_kappa"],
+                          clip_min_frames=co["clip_min_frames"], accumulation_dtype=co["accumulation_dtype"]),
+        output=OutputConfig(output_dir=str(out_dir)))
+    if not ray.is_initialized():  # one Ray runtime; a logical GPU so the GPU-requesting worker actor schedules on CPU
+        import os
+
+        n_gpu = _physical_gpus()
+        repo = str(Path(__file__).resolve().parents[1])  # the repo dir, so the actor can import mesa_argus
+        env_vars = {"PYTHONPATH": os.pathsep.join(p for p in (repo, os.environ.get("PYTHONPATH", "")) if p)}
+        for k in ("HDPS_FORCE_CPU", "OMP_NUM_THREADS", "NUMBA_NUM_THREADS", "MESA_DIR"):
+            if k in os.environ:  # the CPU-route shim and thread caps must reach the worker process too
+                env_vars[k] = os.environ[k]
+        ray.init(num_gpus=(n_gpu if n_gpu > 0 else 1), include_dashboard=False, log_to_driver=False,
+                 configure_logging=False, ignore_reinit_error=True,
+                 runtime_env={"env_vars": env_vars,
+                              "worker_process_setup_hook": "mesa_argus.hdps_worker._actor_setup"})
+    orch = Orchestrator(config=cfg, input_dir=Path(raw_dir), output_dir=out_dir, max_workers=1)
+    result = orch.run()  # start() + run_job() + stop(): hdps batch process's own path
+    alert_dir = out_dir / "alerts"
+    alerts = sum(1 for _ in alert_dir.glob("*.avro")) if alert_dir.exists() else 0
+    return dict(processed=result.successful, failed=result.failed, coadds=result.coadds_produced, alerts=alerts)
+
+
+def run_direct(obs, raw_dir, out_dir, reference_dir=None, stop_after=None, worker_id="mesa_argus", timeout_s=None):
+    """The earlier in-process path: hdps's GPUWorker driven directly (no Ray/Orchestrator), the alert sink and
+    classifier injected in-process. Kept for regression comparison against run(); produces identical data products
+    for a single camera. Returns dict(processed, failed, coadds, alerts)."""
     from hdps.orchestrate.data_sources import ManifestSource, build_manifests_from_groups
     from hdps.orchestrate.orchestrator import group_images_by_ratchet_camera
     from hdps.orchestrate.worker import GPUWorker, WorkerConfig

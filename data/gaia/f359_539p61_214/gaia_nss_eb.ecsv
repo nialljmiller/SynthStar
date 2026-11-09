@@ -1,6 +1,588 @@
 # %ECSV 1.0
 # ---
 # datatype:
-# - {name: Source, datatype: int64}
+# - name: _r
+#   datatype: float64
+#   format: '{:8.6f}'
+#   description: Distance from center (359.53901638000+61.21400257000)[ICRS], at Epoch=J2016.0
+#   meta: !!omap
+#   - {ucd: POS_ANG_DIST_GENERAL}
+#   - {width: 8}
+#   - {precision: '6'}
+# - name: recno
+#   datatype: int32
+#   description: Record number assigned by the VizieR team. Should Not be used for identification.
+#   meta: !!omap
+#   - {ucd: RECORD}
+#   - {width: 8}
+# - name: SolID
+#   datatype: int64
+#   description: Solution Identifier (solution_id)
+#   meta: !!omap
+#   - {ucd: ID_VERSION}
+#   - {width: 19}
+# - name: Source
+#   datatype: int64
+#   description: Source Identifier (source_id)
+#   meta: !!omap
+#   - {ucd: ID_MAIN}
+#   - {width: 19}
+# - name: NSSmodel
+#   datatype: string
+#   description: '[EclipsingBinary] NSS model adopted (nss_solution_type)'
+#   meta: !!omap
+#   - {ucd: MODEL_ID}
+#   - {_votable_string_dtype: char}
+# - name: RA_ICRS
+#   unit: deg
+#   datatype: float64
+#   format: '{:15.11f}'
+#   description: Right ascension (ICRS) at Ep=2016.0 (added by CDS) (ra)
+#   meta: !!omap
+#   - {ucd: POS_EQ_RA_MAIN}
+#   - {width: 15}
+#   - {precision: '11'}
+# - name: DE_ICRS
+#   unit: deg
+#   datatype: float64
+#   format: '{:15.11f}'
+#   description: Declination (ICRS) at Ep=2016.0 (added by CDS) (dec)
+#   meta: !!omap
+#   - {ucd: POS_EQ_DEC_MAIN}
+#   - {width: 15}
+#   - {precision: '11'}
+# - name: Per
+#   unit: d
+#   datatype: float64
+#   format: '{:21.17f}'
+#   description: Orbital Period (period)
+#   meta: !!omap
+#   - {ucd: TIME_PERIOD}
+#   - {width: 21}
+#   - {precision: '17'}
+# - name: Tperi
+#   unit: d
+#   datatype: float64
+#   format: '{:22.15g}'
+#   description: Periastron epoch relative to 2016.0 (t_periastron)
+#   meta: !!omap
+#   - {ucd: TIME_MISC}
+#   - {width: 22}
+#   - {precision: E15}
+# - name: e_Tperi
+#   unit: d
+#   datatype: float64
+#   format: '{:14.7g}'
+#   description: Standard error of Periastron epoch (t_periastron_error)
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 14}
+#   - {precision: E7}
+# - name: ecc
+#   datatype: float64
+#   format: '{:22.15g}'
+#   description: Eccentricity (eccentricity)
+#   meta: !!omap
+#   - {ucd: ORBIT_ECCENTRICITY}
+#   - {width: 22}
+#   - {precision: E15}
+# - name: e_ecc
+#   datatype: float32
+#   format: '{!s:>7}'
+#   description: '? Standard error of eccentricity (eccentricity_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 7}
+#   - values: {'null': .nan}
+# - name: ffactp
+#   datatype: float64
+#   format: '{:20.17f}'
+#   description: Fill factor of primary (fill_factor_primary)
+#   meta: !!omap
+#   - {ucd: MORPH_PARAM}
+#   - {width: 20}
+#   - {precision: '17'}
+# - name: e_ffactp
+#   datatype: float64
+#   format: '{:14.7g}'
+#   description: '? Standard error of Fill factor of primary (fill_factor_primary_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 14}
+#   - {precision: E7}
+#   - values: {'null': .nan}
+# - name: ffacts
+#   datatype: float64
+#   format: '{:21.18f}'
+#   description: Fill factor of secondary (fill_factor_secondary)
+#   meta: !!omap
+#   - {ucd: MORPH_PARAM}
+#   - {width: 21}
+#   - {precision: '18'}
+# - name: e_ffacts
+#   datatype: float64
+#   format: '{:14.7g}'
+#   description: '? Standard error of Fill factor of secondary (fill_factor_secondary_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 14}
+#   - {precision: E7}
+#   - values: {'null': .nan}
+# - name: inc
+#   unit: deg
+#   datatype: float64
+#   format: '{:19.15f}'
+#   description: Orbital inclination (inclination)
+#   meta: !!omap
+#   - {ucd: POS_INCLIN_LOS}
+#   - {width: 19}
+#   - {precision: '15'}
+# - name: e_inc
+#   unit: deg
+#   datatype: float64
+#   format: '{:13.6g}'
+#   description: Standard error of Orbital inclination (inclination_error)
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 13}
+#   - {precision: E6}
+# - name: omega
+#   unit: deg
+#   datatype: float64
+#   format: '{:22.15g}'
+#   description: Argument of periastron (arg_periastron)
+#   meta: !!omap
+#   - {ucd: ORBIT_P-ASTRON_ARG}
+#   - {width: 22}
+#   - {precision: E15}
+# - name: e_omega
+#   unit: deg
+#   datatype: float64
+#   format: '{:14.7g}'
+#   description: '? Standard error of Argument of periastron (arg_periastron_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 14}
+#   - {precision: E7}
+#   - values: {'null': .nan}
+# - name: Tratio
+#   datatype: float64
+#   format: '{:21.18f}'
+#   description: Ratio of the effective temperatures (temperature_ratio)
+#   meta: !!omap
+#   - {ucd: PHYS_TEMP_MISC}
+#   - {width: 21}
+#   - {precision: '18'}
+# - name: e_Tratio
+#   datatype: float64
+#   format: '{:22.15g}'
+#   description: Standard error of the ratio of the effective temperatures (temperature_ratio_error)
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 22}
+#   - {precision: E15}
+# - name: f_Tratio
+#   datatype: uint8
+#   description: '[1/2] Code defining which fitting scenario did apply to the effective temperature (temperature_ratio_definition) (1)'
+#   meta: !!omap
+#   - {ucd: CODE_MISC}
+#   - {width: 1}
+# - name: NGo
+#   datatype: int16
+#   description: Total number of G photometry measurements considered (phot_g_n_obs)
+#   meta: !!omap
+#   - {ucd: NUMBER}
+#   - {width: 3}
+# - name: NgGo
+#   datatype: int16
+#   description: Total number of G photometry measurements actually used (phot_g_n_good_obs)
+#   meta: !!omap
+#   - {ucd: NUMBER}
+#   - {width: 3}
+# - name: bitIndex
+#   datatype: int32
+#   description: boolean mask for the fields above in the corrVec matrix (1321024, 1321088, 1329216, 1329280, 1337408, 1337472, 1342528
+#     or 1342592) (bit_index) (2)
+#   meta: !!omap
+#   - {ucd: CODE_MISC}
+#   - {width: 7}
+# - name: corvec11
+#   datatype: float64
+#   format: '{:13.6g}'
+#   description: '? Parameter 11 of vector of the upper triangle of the correlation matrix (corr_vec[11])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 13}
+#   - {precision: E6}
+#   - values: {'null': .nan}
+# - name: corvec16
+#   datatype: float64
+#   format: '{:14.7g}'
+#   description: '? Parameter 16 of vector of the upper triangle of the correlation matrix (corr_vec[16])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 14}
+#   - {precision: E7}
+#   - values: {'null': .nan}
+# - name: corvec20
+#   datatype: float64
+#   format: '{:13.6g}'
+#   description: '? Parameter 20 of vector of the upper triangle of the correlation matrix (corr_vec[20])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 13}
+#   - {precision: E6}
+#   - values: {'null': .nan}
+# - name: corvec22
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Parameter 22 of vector of the upper triangle of the correlation matrix (corr_vec[22])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: corvec26
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Parameter 26 of vector of the upper triangle of the correlation matrix (corr_vec[26])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: corvec27
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Parameter 27 of vector of the upper triangle of the correlation matrix (corr_vec[27])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: corvec29
+#   datatype: float64
+#   format: '{:13.6g}'
+#   description: Parameter 29 of vector of the upper triangle of the correlation matrix (corr_vec[29])
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 13}
+#   - {precision: E6}
+# - name: corvec33
+#   datatype: float64
+#   format: '{:13.6g}'
+#   description: '? Parameter 33 of vector of the upper triangle of the correlation matrix (corr_vec[33])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 13}
+#   - {precision: E6}
+#   - values: {'null': .nan}
+# - name: corvec34
+#   datatype: float64
+#   format: '{:14.7g}'
+#   description: '? Parameter 34 of vector of the upper triangle of the correlation matrix (corr_vec[34])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 14}
+#   - {precision: E7}
+#   - values: {'null': .nan}
+# - name: corvec35
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Parameter 35 of vector of the upper triangle of the correlation matrix (corr_vec[35])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: corvec37
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Parameter 37 of vector of the upper triangle of the correlation matrix (corr_vec[37])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: corvec41
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Parameter 41 of vector of the upper triangle of the correlation matrix (corr_vec[41])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: corvec42
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Parameter 42 of vector of the upper triangle of the correlation matrix (corr_vec[42])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: corvec43
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Parameter 43 of vector of the upper triangle of the correlation matrix (corr_vec[43])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: corvec44
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Parameter 44 of vector of the upper triangle of the correlation matrix (corr_vec[44])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: corvec67
+#   datatype: float64
+#   format: '{:14.7g}'
+#   description: '? Parameter 67 of vector of the upper triangle of the correlation matrix (corr_vec[67])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 14}
+#   - {precision: E7}
+#   - values: {'null': .nan}
+# - name: corvec71
+#   datatype: float64
+#   format: '{:14.7g}'
+#   description: '? Parameter 71 of vector of the upper triangle of the correlation matrix (corr_vec[71])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 14}
+#   - {precision: E7}
+#   - values: {'null': .nan}
+# - name: corvec72
+#   datatype: float64
+#   format: '{:13.6g}'
+#   description: '? Parameter 72 of vector of the upper triangle of the correlation matrix (corr_vec[72])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 13}
+#   - {precision: E6}
+#   - values: {'null': .nan}
+# - name: corvec73
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Parameter 73 of vector of the upper triangle of the correlation matrix (corr_vec[73])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: corvec74
+#   datatype: float64
+#   format: '{:13.6g}'
+#   description: '? Parameter 74 of vector of the upper triangle of the correlation matrix (corr_vec[74])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 13}
+#   - {precision: E6}
+#   - values: {'null': .nan}
+# - name: corvec75
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Parameter 75 of vector of the upper triangle of the correlation matrix (corr_vec[75])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: corvec79
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Parameter 79 of vector of the upper triangle of the correlation matrix (corr_vec[79])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: corvec83
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Parameter 83 of vector of the upper triangle of the correlation matrix (corr_vec[83])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: corvec84
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Parameter 84 of vector of the upper triangle of the correlation matrix (corr_vec[84])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: corvec85
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Parameter 85 of vector of the upper triangle of the correlation matrix (corr_vec[85])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: corvec86
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Parameter 86 of vector of the upper triangle of the correlation matrix (corr_vec[86])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: corvec87
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Parameter 87 of vector of the upper triangle of the correlation matrix (corr_vec[87])'
+#   meta: !!omap
+#   - {ucd: STAT_CORRELATION}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: ObjFunc
+#   datatype: float64
+#   format: '{:12.7f}'
+#   description: value of the objective function at the solution (obj_func)
+#   meta: !!omap
+#   - {ucd: FIT_PARAM_VALUE}
+#   - {width: 12}
+#   - {precision: '7'}
+# - name: goodness
+#   datatype: float64
+#   format: '{:13.6g}'
+#   description: goodness of fit in the Hipparcos sense (goodness_of_fit)
+#   meta: !!omap
+#   - {ucd: FIT_GOODNESS}
+#   - {width: 13}
+#   - {precision: E6}
+# - name: eff
+#   datatype: float64
+#   format: '{:11.8f}'
+#   description: Efficiency of the solution (efficiency)
+#   meta: !!omap
+#   - {ucd: FIT_PARAM_VALUE}
+#   - {width: 11}
+#   - {precision: '8'}
+# - name: Signi
+#   datatype: float32
+#   format: '{:4.1f}'
+#   description: The significance of the solution (i.e. how worth keeping a model is) (significance)
+#   meta: !!omap
+#   - {ucd: STAT_SIGNIFICANCE}
+#   - {width: 4}
+#   - {precision: '1'}
+# - name: Flags
+#   datatype: uint8
+#   description: '[0] Quality flag for the achieved NSS solution (flags)'
+#   meta: !!omap
+#   - {ucd: CODE_MISC}
+#   - {width: 1}
+# - name: rpolesum
+#   datatype: float64
+#   format: '{:21.18f}'
+#   description: Sum of the polar radii of primary and secondary (in units of the semi-major axis) (r_pole_sum)
+#   meta: !!omap
+#   - {ucd: EXTENSION_RAD}
+#   - {width: 21}
+#   - {precision: '18'}
+# - name: rl1ptsum
+#   datatype: float64
+#   format: '{:21.18f}'
+#   description: L1-pointing radii of primary and secondary (in units of the semi-major axis) (r_l1_point_sum)
+#   meta: !!omap
+#   - {ucd: EXTENSION_RAD}
+#   - {width: 21}
+#   - {precision: '18'}
+# - name: rsphersum
+#   datatype: float64
+#   format: '{:20.17f}'
+#   description: Sum of the radii of sphere having the same volume as the primary and secondary (in units of the semi-major axis) (r_spher_sum)
+#   meta: !!omap
+#   - {ucd: EXTENSION_RAD}
+#   - {width: 20}
+#   - {precision: '17'}
+# - name: Teclp
+#   unit: d
+#   datatype: float64
+#   format: '{:22.15g}'
+#   description: Time of mid-eclipse of the primary by the secondary (ecl_time_primary)
+#   meta: !!omap
+#   - {ucd: TIME_MISC}
+#   - {width: 22}
+#   - {precision: E15}
+# - name: Tecls
+#   unit: d
+#   datatype: float64
+#   format: '{:22.15g}'
+#   description: Time of mid-eclipse of the secondary by the primary (ecl_time_secondary)
+#   meta: !!omap
+#   - {ucd: TIME_MISC}
+#   - {width: 22}
+#   - {precision: E15}
+# - name: Durp
+#   unit: d
+#   datatype: float64
+#   format: '{:21.18f}'
+#   description: Duration of primary eclipse assuming spherical components (ecl_dur_primary)
+#   meta: !!omap
+#   - {ucd: TIME_INTERVAL}
+#   - {width: 21}
+#   - {precision: '18'}
+# - name: Durs
+#   unit: d
+#   datatype: float64
+#   format: '{:22.18f}'
+#   description: Duration of secondary eclipse assuming spherical components (ecl_dur_secondary)
+#   meta: !!omap
+#   - {ucd: TIME_INTERVAL}
+#   - {width: 22}
+#   - {precision: '18'}
+# - name: Gratio
+#   datatype: float64
+#   format: '{:22.15g}'
+#   description: Ratio of the G-band luminosity of the secondary over the primary (g_luminosity_ratio)
+#   meta: !!omap
+#   - {ucd: PHYS_LUMINOSITY_RATIO}
+#   - {width: 22}
+#   - {precision: E15}
+# - name: inputEPer
+#   unit: d
+#   datatype: float64
+#   format: '{:14.7g}'
+#   description: Standard error of the period taken from VariEclipsingBinary.frequencyError (input_period_error)
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 14}
+#   - {precision: E7}
+# - name: Grank
+#   datatype: float64
+#   format: '{:19.16f}'
+#   description: Rank of the G-band solution (g_rank)
+#   meta: !!omap
+#   - {ucd: FIT_PARAM_VALUE}
+#   - {width: 19}
+#   - {precision: '16'}
+# meta: !!omap
+# - {ID: I_357_tboeb}
+# - {name: I/357/tboeb}
+# - {description: Non-single-star orbital models for sources compatible with Eclipsing binary model (nss_two_body_orbit)}
+# - {radius_deg: 0.52}
 # schema: astropy-2.0
-Source
+_r recno SolID Source NSSmodel RA_ICRS DE_ICRS Per Tperi e_Tperi ecc e_ecc ffactp e_ffactp ffacts e_ffacts inc e_inc omega e_omega Tratio e_Tratio f_Tratio NGo NgGo bitIndex corvec11 corvec16 corvec20 corvec22 corvec26 corvec27 corvec29 corvec33 corvec34 corvec35 corvec37 corvec41 corvec42 corvec43 corvec44 corvec67 corvec71 corvec72 corvec73 corvec74 corvec75 corvec79 corvec83 corvec84 corvec85 corvec86 corvec87 ObjFunc goodness eff Signi Flags rpolesum rl1ptsum rsphersum Teclp Tecls Durp Durs Gratio inputEPer Grank
+0.429773 83279 4338096422163308546 429479691478385664 EclipsingBinary 0.40567323588 61.11404761091 2.799210548400879 0.1230442374944687 5.9521113e-05 0.0 "" 0.2558181881904602 0.0045222268 0.35129794478416443 0.0061503565 85.76327714345427 0.02105482 0.0 "" 1.014914186476548 0.0007057031299436816 1 54 52 1337472 0.1829853 -0.18758217 -0.9734532 "" "" "" 0.2443107 0.1885796 -0.38896215 "" "" "" "" "" "" 0.0437158 0.55649984 -0.4533696 "" -0.221514 "" "" "" "" "" "" "" 2769.6863 42.11916 0.3219667 0.0 0 0.21130144054966934 0.2120890399950527 0.21160935880720266 0.8228468810705891 -0.576758401094974 0.17805676794233422 0.17805676794233422 0.921805235481329 3.4576195e-05 0.6557511811904041
+0.433124 83280 4338096422163308546 429480756630238464 EclipsingBinary 0.43621868314 61.1861322767 0.9088502526283264 0.1980993896722794 5.6759403e-05 0.0 "" 0.7530376315116882 0.0062998245 0.748939573764801 0.0058075585 84.66925842333666 0.05865999 0.0 "" 1.2636411454286032 0.005140614083093202 1 52 50 1337472 0.1545658 -0.07144793 -0.9669435 "" "" "" -0.3421317 -0.03990705 -0.019005679 "" "" "" "" "" "" 0.25773653 0.5889393 -0.5844536 "" -0.7521891 "" "" "" "" "" "" "" 492.4585 17.43356 0.32040304 0.0 0 0.5349011585719478 0.5697210736740363 0.5475318798170582 0.4253119527213292 -0.0291131776576935 0.1612801542188729 0.1612801542188729 0.6980795164356778 1.9587312e-06 0.7550244910356609
+0.497171 83282 4338096422163308546 429521198043084672 EclipsingBinary 0.07295609983 61.64058115224 1.0123531818389893 0.5010982155799866 7.956896e-05 0.0 "" 0.7438538074493408 0.0017405035 0.64083331823349 0.0041132458 91.14606043588212 0.8630524 0.0 "" 0.9877363117638341 0.000874978288611468 1 58 54 1337472 0.2197404 0.058548767 0.4440699 "" "" "" 0.07086359 0.3442158 0.9572248 "" "" "" "" "" "" 0.16002221 0.34613445 -0.2013083 "" -0.1594898 "" "" "" "" "" "" "" 1291.5211 29.40967 0.5157046 0.0 0 0.4966053635656116 0.5219677405759235 0.5061514525315054 -0.2581666623804912 0.2480099342030069 0.16735110881490312 0.16735110881490312 0.54887931852812 2.0701677e-06 0.6395611182513082
+0.489059 85884 4338096422163308546 2011676545887141760 EclipsingBinary 359.56447225187 60.72509935299 0.5728441476821899 0.185567781329155 0.00010032547 0.0 "" 0.95390385389328 0.0053193877 0.9980876445770264 0.020749174 76.44904379495627 0.8725846 0.0 "" 3.1078415143839093 0.09768467649066798 1 58 56 1337472 0.1458388 -0.05222719 -0.9455026 "" "" "" 0.05860896 0.9240547 -0.9928576 "" "" "" "" "" "" 0.1516014 0.62656415 -0.5554158 "" 0.4999969 "" "" "" "" "" "" "" 1082.9987 26.86791 0.2214721 0.0 0 0.6958024479590785 0.8806002816032897 0.7397741365006761 -0.2440653404437937 0.04235673771145987 0.13484339695466585 0.13484339695466585 0.0274457085725773 6.625134e-07 0.6005182166992645
+0.15323 85890 4338096422163308546 2011893493278730240 EclipsingBinary 359.83602310331 61.26932470232 1.618680715560913 -0.1356681138277054 0.00029982245 0.0 "" 0.6731701493263245 0.008561727 0.6867044568061829 0.0031439685 85.41486919389193 0.2229804 0.0 "" 2.584639759988748 0.04104718235149104 1 55 49 1337472 -0.3240257 -0.16587615 -0.365902 "" "" "" 0.2876086 0.02826496 -0.43493563 "" "" "" "" "" "" -0.15678899 0.02934336 0.12754 "" -0.844888 "" "" "" "" "" "" "" 255.99197 11.30778 0.6430931 0.0 0 0.48611335475743644 0.5079624223854213 0.4945899759357121 0.269002059053727 -0.5403382896639348 0.2585663191769276 0.2585663191769276 0.2045780286231883 9.999479e-06 0.68502672124588
+0.394685 85891 4338096422163308546 2011925688354454912 EclipsingBinary 358.71959687121 61.22591336973 1.2064975500106812 0.1891695559024811 7.844209e-05 0.0 "" 0.6593627333641052 0.0013346203 0.6195023059844971 0.0016104226 87.02539364923508 0.1476638 0.0 "" 1.403995260004574 0.002751688432275022 1 61 58 1337472 -0.4225014 -0.34338295 0.7312762 "" "" "" 0.1622506 -0.5262402 -0.824392 "" "" "" "" "" "" -0.055602804 0.075698406 0.134247 "" -0.2943505 "" "" "" "" "" "" "" 705.7807 21.22646 0.6289774 0.0 0 0.45750481007388066 0.47427225408065893 0.4640860684512761 0.4907939270035465 -0.1124548276850343 0.18148124509349417 0.18148124509349417 0.2349070055946636 2.940098e-06 0.6799783899851221
+0.270467 85892 4338096422163308546 2011958089589285760 EclipsingBinary 359.53462728928 61.48446100956 0.4994059205055237 0.1839286386966705 0.00011132813 0.0 "" 1.0 8.430659e-08 0.8328790068626404 0.02184451 81.11238960172832 0.2831727 0.0 "" 1.2911332733368646 0.0037124277315816 2 48 44 1337408 0.03556869 -0.17005473 -0.9363343 "" "" "" 0.2800657 0.4249719 -0.68578976 "" "" "" "" "" "" "" "" "" "" "" "" -0.57012206 0.13606578 0.06756145 "" -0.35266697 "" 849.77625 23.82928 0.3339596 0.0 0 0.661215264553748 0.8422694159050799 0.6966256564550309 -0.1906257860638782 0.05907716683923242 0.11263357397273725 0.11263357397273725 0.8188134589635783 1.7458312e-06 0.6112761945457159
+0.449774 85893 4338096422163308546 2011971730405267200 EclipsingBinary 359.05881663851 61.60063465325 0.7152051329612732 0.1992034912109375 0.00013285686 0.0 "" 1.060887336730957 "" 1.0937213897705078 3.3399328e-06 81.28925052009663 0.1252824 0.0 "" 1.0127532982109948 0.001264993590383259 1 60 59 1321088 "" 0.020762552 "" "" "" "" -0.2895736 "" 0.06730475 "" "" "" "" "" "" 0.0391776 "" -0.02398737 "" 0.1026345 "" "" "" "" "" "" "" 843.81714 23.42298 0.97265244 0.0 0 0.7676565283606807 1.0 0.8398529840672793 -0.3372003598281556 0.02040221080959903 0.19701301270933508 0.19701301270933508 0.4956386714650521 1.4264762e-06 0.6210738462684526

@@ -6,7 +6,8 @@ justification for them, with the source. runconfig.py checks every value against
 
 Sources of the defaults:
 - [argussim.*]: ArgusSim, read from it (argus_sim.config, argus_sim.coverage_exact.Schedule) when the file is
-  resolved, so a run records exactly what it used. ArgusSim defines everything about taking the image.
+  resolved, so a run records exactly what it used. ArgusSim defines everything about taking the image. One exception:
+  [argussim.packing_strategy] layout_file defaults to A170r_1200, not ArgusSim's thinB (its note says why).
 - [hdps] and [[hdps.tasks]]: hdps's production pipeline, docker/demo/config.yaml (the Task chain and its settings),
   and each Task's constructor defaults (hdps.orchestrate.tasks). hdps processes the raw frames.
 - [camera]: the toy camera (mesa_argus/camera.py): what ArgusSim does not define (electrons to ADU).
@@ -50,6 +51,13 @@ def schedule(name):
     from argus_sim.coverage_exact import Schedule
 
     return getattr(Schedule(), name)
+
+
+def layouts():
+    """ArgusSim's registered ring layouts (argus_sim.ring_layout.LAYOUTS)."""
+    from argus_sim.ring_layout import LAYOUTS
+
+    return set(LAYOUTS)
 
 
 def sensor_px():
@@ -112,6 +120,13 @@ def _window_offset_check(v, r):
     return None if corner <= RADIUS_DEG * 60 else f"the window's far corner {corner:.1f}' beyond the field's Gaia stars ({RADIUS_DEG * 60:.0f}')"
 
 
+def _only_nights_check(v, r):
+    nights = (r or {}).get("night", {}).get("nights", 7)
+    if not isinstance(v, list) or not all(isinstance(k, int) and not isinstance(k, bool) and 1 <= k <= nights for k in v):
+        return f"[] or night numbers 1..{nights}"
+    return None if len(set(v)) == len(v) else "each night once"
+
+
 def _window_check(v):
     if v == 0:
         return None
@@ -128,6 +143,13 @@ NIGHT = [
       "change most.", allowed_text="YYYY-MM-DD | \"auto\""),
     P("nights", 7, "nights", (1, 366), "Consecutive nights observed. 7 is the standard observation (a week); up to a "
       "year."),
+    P("only_nights", [], "", lambda v, r: _only_nights_check(v, r), "Observe only these of the nights (1: the first): "
+      "the scene (transient times over all the nights), the reference and every exposure are made as for all of them "
+      "and only these nights' exposures are observed, so runs of different nights add up to one observation of all of "
+      "them (a week split across machines). Such a run draws its frames' noise from output.noise_seed + its first "
+      "night here (the engine seeds a frame by its order in the run, so runs of different nights would otherwise repeat "
+      "each other's noise); its reference keeps output.noise_seed. []: every night.",
+      allowed_text="[] or a list of night numbers 1..nights"),
     P("seed", 0, "", (0, 2**31 - 1), "Seed of ArgusSim's per-ratchet draws (seasonal zenith seeing); the same seed "
       "makes the same nights."),
     P("reference_nights", 1, "nights", (1, 200), "Nights observed before the first night to make hdps's references "
@@ -452,6 +474,16 @@ ARGUSSIM = {
         P("ee50_max_px", argus("telescope.ee50_max_px"), "px", POSITIVE, f"Cap on the delivered EE50 diameter "
           f"({_A}); none: uncapped. Positive.", optional=True),
         P("randomize_pixel_phase", argus("telescope.randomize_pixel_phase"), "", {True, False}, f"({_A})"),
+    ],
+    "packing_strategy": [
+        P("layout_file", "A170r_1200", "", layouts(), "The array's ring layout, by its name in ArgusSim "
+          "(argus_sim.ring_layout.LAYOUTS): every telescope's pointing (alt/az), tel_id, subarray and band, which "
+          "coverage_exact.covering observes with. Default A170r_1200, not ArgusSim's own default (thinB, 1190 "
+          "telescopes): the canonical layout (argus-hdps/array_arrangement 9206cc3, PI 2026-09-23; 1200 telescopes on "
+          "8 subarrays, its band table 600 beta / 600 rho), adopted here 2026-10-28; runs before then used thinB. "
+          "observe.py records it in scene/exposures.ecsv, and the engine stops when the two differ (each exposure's "
+          "telescope is a row of this layout). The *-strips layouts assign bands by ArgusSim's strip rule instead of "
+          "the table; legacy1202 is the pre-thinning layout."),
     ],
     "survey": [
         P("min_sun_alt", argus("survey.min_sun_alt"), "deg", (-90.0, 0.0), f"Observing only with the Sun below this "

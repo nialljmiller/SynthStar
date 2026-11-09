@@ -35,3 +35,7 @@ data/library/
 # real/bogus training sets and model bundles (tools/rb_training_set.py, tools/train_rb.py)
 /data/interactive/
 /data/rb/
+
+# internal reference docs (not for public distribution) and tool cache
+info/
+.chisel/

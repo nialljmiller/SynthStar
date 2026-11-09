@@ -7,6 +7,8 @@ dec = 11.8
 block = 9
 
 [night]
+reference_nights = 5  # (2026-10-27) with reference_ratchets: each telescope's sharpest ratchet of 5 nights (M67: science frames sharper than their camera's reference 87% -> 8%; every camera its own reference)
+reference_ratchets = 1  # (2026-10-27) M67 beta, 8 frames: hdps candidates 676 -> 465 per frame, real/bogus-accepted 318 -> 192; M3 803 -> 693, 252 -> 216 (9 frames: hdps failed on a 10th); M45 124 -> 138, 38 -> 42
 date = "2026-02-17"  # new moon (2026-02-01 was full, the Moon 12 deg from M67: a sky of ~3550 e- per tile pixel above the bright-star mask's threshold, no alert candidate all night)
 nights = 1
 
@@ -14,9 +16,19 @@ nights = 1
 background = "m67_field"
 layout = "real"
 
+[image]
+psf_wing = false  # off (2026-10-26): M45 beta, 10 exposures, chi2/px at bright stars in the difference 2.4 without the wing, 7.0 with it to 30 px, 8.2 to 400 px (stars over-subtracted; to 400 px also blotchy background)
+psf_box = 121  # on (2026-10-27): the PSF in a 121 px box, so a bright star's light no longer stops at the 28 px stamp's square edge (the square showed in the exposure and the difference)
+psf_halo = true  # on (2026-10-27): the on-sky halo (H. Corbett) beyond ArgusSim's 14.5 px optics, optics tapered to a circle; as the alerts chat's iter3 (f294: no square, bright-star |diff|/flux as iter2)
+
+[argussim.telescope]
+psf_model = "gaussian"  # (2026-10-27) the Zemax PSF models are under NDA and may not appear in anything public, images drawn with them included (user): ArgusSim's Gaussian spot (spot_size) with the Moffat seeing
+
 [output]
 movie = false
 pipeline_movie = false
+movie_window_px = 0  # the pack keeps the block's tile only (the notebook draws no window mosaic); the window view makes hdps write every tile, 123 MB per frame against 32 MB, ~25-30 GB more at peak for a 310-exposure night
+movie_mask_reference_e = 0  # (2026-10-27) off: the pack keeps hdps's difference images as they are (the engine's grey disc over stars bright in the reference is for the field movies; argus_night_live.pack captures the draw data)
 
 [[hdps.tasks]]
 type = "DataCleanupTask"
@@ -31,16 +43,8 @@ type = "SourceDetectionTask"
 type = "SourceFilterTask"
 
 [[hdps.tasks]]
-type = "ReferenceRetrievalTask"
-
-[[hdps.tasks]]
-type = "LinearWCSSolverTask"
-
-[[hdps.tasks]]
-type = "SourceMatchingTask"
-
-[[hdps.tasks]]
-type = "TPVWCSSolverTask"
+type = "TrueCalibrationTask"  # the frame's WCS and zero point from the simulation, in place of
+# ReferenceRetrievalTask, LinearWCSSolverTask, SourceMatchingTask and TPVWCSSolverTask (2026-10-26)
 
 [[hdps.tasks]]
 type = "LightweightFITSOutputTask"

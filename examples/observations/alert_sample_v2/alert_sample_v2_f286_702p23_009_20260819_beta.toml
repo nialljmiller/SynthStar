@@ -1,0 +1,80 @@
+# Alert sample v2 (2026-10-28): alert_sample_v1_f286_702p23_009_20260819's field, night and injection seed in beta, every
+# exposure, on the rb3 training nights' pipeline (the simulation's WCS and zero points; hdps alert-v4-local
+# 6c0309d5: the filled v4.0 packet). Real/bogus model data/rb/bundle_v3 (trained on rb3 f008 2026-10-09),
+# score_cut fa10; every candidate in alerts.csv, packets for the accepted. Held-out field: never in training.
+[field]
+name = "alert_sample_v2_f286_702p23_009_20260819_beta"
+ra = 286.702
+dec = 23.009
+
+[night]
+date = "2026-08-19"
+nights = 1
+reference_nights = 5
+reference_ratchets = 1
+
+[stars]
+background = "f286_702p23_009_field"
+layout = "real"
+photometry_workers = 8  # forked (Linux): newton and vega; the results do not depend on it
+
+[inject]
+number = 200
+seed = 1005
+
+[image]
+psf_box = 121
+psf_halo = true
+psf_seeing_step = 0.02
+
+[output]
+bands = ["beta"]
+movie = false
+pipeline_movie = false
+movie_data = false
+movie_window_px = 0
+lightcurves = false
+stride = 1
+
+[[hdps.tasks]]
+type = "DataCleanupTask"
+
+[[hdps.tasks]]
+type = "ImageReductionTask"
+
+[[hdps.tasks]]
+type = "SourceDetectionTask"
+
+[[hdps.tasks]]
+type = "SourceFilterTask"
+
+[[hdps.tasks]]
+type = "TrueCalibrationTask"
+
+[[hdps.tasks]]
+type = "LightweightFITSOutputTask"
+
+[[hdps.tasks]]
+type = "ReprojectionTask"
+
+[[hdps.tasks]]
+type = "CoaddTapTask"
+
+[[hdps.tasks]]
+type = "SFFTSubtractionTask"
+
+[[hdps.tasks]]
+type = "DiffDetectionTask"
+
+[[hdps.tasks]]
+type = "TransientOutputTask"
+
+[[hdps.tasks]]
+type = "AlertVettingTask"
+[hdps.tasks.config]
+model_bundle = "data/rb/bundle_v3"
+score_cut = "fa10"
+emit_all_candidates = true
+
+[[hdps.tasks]]
+type = "TileImageOutputTask"

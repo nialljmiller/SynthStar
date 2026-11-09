@@ -523,7 +523,7 @@ class Projector:
         coordinates about it (no iterative fit: astropy's fit_wcs_from_points converged to wrong solutions for some
         telescopes, 2026-10-26). The geometry is gnomonic about the axis in the apparent (CIRS) frame, so TAN is exact
         there; CIRS -> ICRS adds differential aberration, a few milli-pixels across the sensor. Returns (astropy WCS,
-        largest residual over the points, px)."""
+        largest residual over the points, their RMS residual; px)."""
         import astropy.units as u
         from argus_sim import c
         from astropy.coordinates import CIRS, SkyCoord
@@ -554,4 +554,5 @@ class Projector:
         w.wcs.radesys = "ICRS"
         w.wcs.set()
         px, py = w.world_to_pixel(sky)
-        return w, float(np.max(np.hypot(px - x, py - y)))
+        r = np.hypot(px - x, py - y)
+        return w, float(np.max(r)), float(np.sqrt(np.mean(r**2)))

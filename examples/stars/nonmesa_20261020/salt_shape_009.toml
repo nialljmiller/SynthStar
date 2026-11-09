@@ -1,0 +1,385 @@
+# Non-MESA coverage templates; not population weights.
+
+[[star]]
+name = "libnm_salt_shape_7d976508f89d98"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.0044592100338454515
+M = -19.668137014033274
+host_ebv = 0.2073202133178711
+params = {x1 = -1.0684128273278475, c = -0.1602204719092697}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_57f07cdbb1f314"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.05751751370924971
+M = -19.217037043180316
+host_ebv = 0.33279751148074865
+params = {x1 = 1.8643638007342815, c = 0.11450200090184809}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_a0e2e1f789812f"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.002421560569978559
+M = -19.75385961258784
+host_ebv = 0.45520772598683834
+params = {x1 = 1.3559000696986914, c = -0.04274359215050935}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_8d3e242775aa46"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.10637303047374358
+M = -17.6478148822207
+host_ebv = 0.0806995565071702
+params = {x1 = -2.1507749520242214, c = 0.3935503182467074}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_df4e23b50da52e"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.020350734001689935
+M = -18.66537728409283
+host_ebv = 0.008208256680518389
+params = {x1 = -2.892348451539874, c = 0.012567817931994796}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_107b3c3d734c55"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.012674049031045843
+M = -18.801446280032398
+host_ebv = 0.3836846384219825
+params = {x1 = 0.5967470481991768, c = 0.2672988904640079}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_1840696ac5cdfc"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.15926861498208014
+M = -20.14650593265891
+host_ebv = 0.26372348750010133
+params = {x1 = 2.6052052471786737, c = -0.19522929778322579}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_8717fe8aca5e3f"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.0016082677444627044
+M = -18.673358320286496
+host_ebv = 0.13921584701165557
+params = {x1 = -0.30999188125133514, c = 0.22043100805021826}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_21f12f3c7f75e4"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.2333093065293622
+M = -19.616718693077566
+host_ebv = 0.3438956248573959
+params = {x1 = -0.49159929156303406, c = -0.05670924345031381}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_008590c6bf8ff8"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.0010558159308052257
+M = -18.483328431760892
+host_ebv = 0.2193801742978394
+params = {x1 = 2.786834830418229, c = 0.3211829822976142}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_fbdc2e04d72a49"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.024807801016923106
+M = -19.685291993943974
+host_ebv = 0.09989961748942733
+params = {x1 = 0.016703568398952484, c = -0.09040572945959865}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_42c655333cca10"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.00988943892564743
+M = -18.527928269654513
+host_ebv = 0.47539918357506394
+params = {x1 = -2.3122827988117933, c = 0.12084435299038887}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_c97bab1d1676d4"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.0029511539782091393
+M = -19.711347568202765
+host_ebv = 0.43363312538713217
+params = {x1 = -1.547270368784666, c = -0.22950125262141227}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_bec50d0a9dfcef"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.08300942555677893
+M = -18.924057496013123
+host_ebv = 0.059117503464221954
+params = {x1 = 0.7524176593869925, c = 0.1683898120652884}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_2adc0db0c62e81"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.006531591275516764
+M = -19.253338657291607
+host_ebv = 0.18200843129307032
+params = {x1 = 2.0225544534623623, c = 0.06208369550295173}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_c58f90318e3ee8"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.037769430902541
+M = -18.424653884302824
+host_ebv = 0.3075083177536726
+params = {x1 = -1.2265813071280718, c = 0.29395994385704405}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_210fb31e18af60"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.0012218218334395985
+M = -18.84852139613591
+host_ebv = 0.07553644385188818
+params = {x1 = -1.4833824466913939, c = 0.04288270487450063}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_5f367aa090c5d8"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.28839852091347745
+M = -18.731901831440627
+host_ebv = 0.45102861523628235
+params = {x1 = 2.1874023154377937, c = 0.317608923651278}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_ff4b59f237f78f"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.011175164371864601
+M = -19.96475928198546
+host_ebv = 0.3234380120411515
+params = {x1 = 1.0083261821419, c = -0.2458469989709556}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_94fd0bd60d0e87"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.031308649996525016
+M = -18.737438107235356
+host_ebv = 0.198914697393775
+params = {x1 = -1.7134686559438705, c = 0.1904431606177241}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_d9beac131a8def"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.09597128720571674
+M = -19.426004381710662
+host_ebv = 0.14204815356060863
+params = {x1 = -2.477760063484311, c = -0.10928562036715447}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_8519546a85ebcf"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.0036510856020690726
+M = -18.729058501590043
+host_ebv = 0.26754016848281026
+params = {x1 = 0.27333302423357964, c = 0.14544176431372763}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_6faf56b6f1a81f"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.0426436833121838
+M = -19.990587133076044
+host_ebv = 0.39757983898743987
+params = {x1 = 2.952426513656974, c = -0.07337609436362982}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_7078e0b95d9c5e"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.008250913095842999
+M = -18.1372505541984
+host_ebv = 0.023056829813867807
+params = {x1 = -0.7476565204560757, c = 0.3422879041638226}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_85785ac8518afd"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.07101207982625275
+M = -19.67825902340934
+host_ebv = 0.4933643382973969
+params = {x1 = -0.1441054455935955, c = -0.17856643982231618}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_5160f020d3dd65"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.005152256741996515
+M = -19.1959142304305
+host_ebv = 0.11886451719328761
+params = {x1 = 2.3488990422338247, c = 0.19932945924811069}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_b5ba7e003e58c1"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.13445832822632497
+M = -19.232429065043107
+host_ebv = 0.24938477808609605
+params = {x1 = 0.4315701685845852, c = 0.03145107706077399}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_b5af3e4c5b45c6"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.002739721648646592
+M = -18.210661135856064
+host_ebv = 0.37486898666247725
+params = {x1 = -2.6359736043959856, c = 0.24269749103114013}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_521d90824a7e8b"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.015655445308655723
+M = -19.221193269602953
+host_ebv = 0.28622815757989883
+params = {x1 = -1.8951211273670197, c = -0.02639439525082707}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_c0e1d3b1012714"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.0234998532984846
+M = -18.2813939173799
+host_ebv = 0.16172743495553732
+params = {x1 = 1.1900022570043802, c = 0.37149289925582707}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_318c53aa295632"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.0020340901762761015
+M = -20.1386218535807
+host_ebv = 0.03461754135787487
+params = {x1 = 1.6073137745261192, c = -0.1410235468763858}
+band = "bessellb"
+magsys = "ab"
+
+[[star]]
+name = "libnm_salt_shape_c6d19a4efd3099"
+generator = "supernova"
+model = "salt3-nir"
+version = "1.0"
+z = 0.18010450458811855
+M = -18.675804977975787
+host_ebv = 0.41010226402431726
+params = {x1 = -0.9032703023403883, c = 0.09085646681487564}
+band = "bessellb"
+magsys = "ab"

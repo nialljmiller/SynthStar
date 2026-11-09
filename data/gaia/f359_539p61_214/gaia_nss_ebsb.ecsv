@@ -2,5 +2,7 @@
 # ---
 # datatype:
 # - {name: Source, datatype: int64}
+# meta: !!omap
+# - {radius_deg: 0.52}
 # schema: astropy-2.0
 Source

@@ -2,15 +2,18 @@
 position, through which telescope, in which band, where in that telescope's field, and the seeing of each ratchet.
 
 All from ArgusSim:
-- coverage: coverage_exact.covering, its ring layout (thinB: 1190 telescopes, each in g = beta or rho) and ratchet
-  schedule (60 s exposures, 14 min tracking + 1 min reset, Sun below -18 deg); a position is observed in an exposure
-  when it falls inside a telescope's field. Where two telescopes overlap it is observed by both (two records, often in
-  both bands); between telescopes and outside the array's footprint, not at all.
+- coverage: coverage_exact.covering, the observation's ring layout ([argussim.packing_strategy] layout_file, default
+  A170r_1200: 1200 telescopes, each in g = beta or rho by the layout's band table; thinB, 1190 telescopes, before
+  2026-10-28) and ratchet schedule (60 s exposures, 14 min tracking + 1 min reset, Sun below -18 deg); a position is
+  observed in an exposure when it falls inside a telescope's field. Where two telescopes overlap it is observed by
+  both (two records, often in both bands); between telescopes and outside the array's footprint, not at all.
 - field angle: the position's angle from that telescope's optical axis, in the array frame (the PSF depends on it).
 - seeing: one zenith seeing per ratchet, drawn from the site's seasonal model (survey.draw_seasonal_seeing, Barker et
   al. 2003), x airmass^0.6 per exposure (as in ArgusSim); seeded, so a seed is one realisation.
 Not included: weather (lost nights), clouds (transparency 1).
 """
+from functools import lru_cache
+
 import astropy.units as u
 from astropy.coordinates import CIRS, SkyCoord
 from astropy.table import Table
@@ -30,18 +33,35 @@ def ut_hours(text):
     return h - 24 if h >= 20 else h
 
 
-def exposures(ra, dec, date, nights=1, seed=0, start=None, end=None):
+@lru_cache(maxsize=4)
+def array_layout(name):
+    """ArgusSim's ring layout `name` ([argussim.packing_strategy] layout_file), with its bands (Layout.from_config)."""
+    return Layout.from_config(layout=name)
+
+
+def check_layout(rows, name):
+    """Stop unless the exposures `rows` (scene/exposures.ecsv, from exposures below) were found with layout `name`: their
+    ota and tel_id are that layout's rows, so with another layout every frame would be another telescope's."""
+    made = rows.meta.get("layout")
+    if made != name:
+        raise SystemExit(f"scene/exposures.ecsv was made with the ring layout {made!r}, the observation asks for {name!r} "
+                         f"([argussim.packing_strategy] layout_file): make the scene again (observe.py), or, to use it "
+                         f"as it is, set layout_file = \"{made}\" in the observation file")
+
+
+def exposures(ra, dec, date, nights=1, seed=0, start=None, end=None, *, layout):
     """Every exposure of the position in the nights starting on local `date` (UTC 23:00 + 14 h each), within the UT
-    window start-end: one row per (exposure, telescope). Columns: time (UTC isot, mid-exposure), ratchet, tel_id,
-    ota (the telescope's row in ArgusSim's layout), theta_deg (the exposure's tracking angle), band (beta / rho),
-    field_angle (deg), seeing_zenith (arcsec, the ratchet's)."""
+    window start-end, through ArgusSim's ring layout named `layout` ([argussim.packing_strategy] layout_file): one row
+    per (exposure, telescope). Columns: time (UTC isot, mid-exposure), ratchet, tel_id, ota (the telescope's row in
+    that layout), theta_deg (the exposure's tracking angle), band (beta / rho), field_angle (deg), seeing_zenith
+    (arcsec, the ratchet's). meta layout: the layout's name."""
     t0 = Time(f"{date} 23:00:00", scale="utc")
     t1 = t0 + (nights - 1) * u.day + 14 * u.hour
-    layout = Layout.from_config()
+    layout = array_layout(layout)
     cover = covering(ra, dec, t0, t1, layout=layout, apparent=True)
     if len(cover.point) == 0:
         return Table(names=["time", "ratchet", "tel_id", "ota", "theta_deg", "band", "field_angle", "seeing_zenith"],
-                     dtype=[str, int, int, int, float, str, float, float])
+                     dtype=[str, int, int, int, float, str, float, float], meta=dict(layout=layout.name))
     j = cover.exposure
     times = cover.times[j]
 

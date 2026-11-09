@@ -33,10 +33,19 @@ THREADS = min(8, os.cpu_count() or 1)  # frames measured at once when no worker 
 MEASURED_KEPT = 500  # settings whose measurements are kept on disk per pack (~30 kB each)
 
 
+def model_label(path):
+    """A bundle's name: <name> of data/rb/<name>/bundle or of data/rb/<name>."""
+    path = Path(path)
+    return path.parent.name if path.name == "bundle" else path.name
+
+
 def bundle():
-    """The newest trained real/bogus bundle (data/rb/<name>/bundle), the final one when there."""
-    found = sorted((REPO / "data" / "rb").glob("*/bundle/manifest.json"), key=lambda p: p.stat().st_mtime)
-    final = [p for p in found if p.parent.parent.name == "final"]
+    """The newest trained real/bogus bundle (data/rb/<name>/bundle or data/rb/<name>), the final one when there.
+    (Until 2026-10-27 only the first layout was looked for, so the app scored with early while the pipeline's
+    AlertVettingTask had bundle_v1: field alerts per frame M67 192 against 0.0, M3 216 against 0.0, M45 42 against 0.1.)"""
+    rb = REPO / "data" / "rb"
+    found = sorted([*rb.glob("*/bundle/manifest.json"), *rb.glob("*/manifest.json")], key=lambda p: p.stat().st_mtime)
+    final = [p for p in found if "final" in (p.parent.name, p.parent.parent.name)]
     return str((final or found)[-1].parent) if found else None
 
 
@@ -82,7 +91,7 @@ class Night:
         self.star = EditableStar()
         self.span = (float(p["bjd"][0]), float(p["bjd"][-1]))
         model_name = "none" if self.model is None else (
-            f"{Path(self.model).parent.name}.{(Path(self.model) / 'manifest.json').stat().st_mtime_ns}")
+            f"{model_label(self.model)}.{(Path(self.model) / 'manifest.json').stat().st_mtime_ns}")
         self.field_alerts = pack.cached(p, f"field_alerts.{model_name}.{cut}", self._score_field)
         self.hdps_fwhm, self.hdps_plane = self._hdps_frame_values()
         sky_q = pack.cached(p, "sky_noise", lambda: [(np.nan, np.nan) if c is None else compose.noise_ratio(c)
@@ -170,7 +179,8 @@ class Night:
         return compose.frame(c, self.band, float(p["seeing"][j]), float(p["survey"]["field_angle"][j]),
                              float(p["airmass"][j]), float(star["electrons"][self.band][n]),
                              float(star["reference"][self.band][n]), s.dx, s.dy, d_airmass=d_airmass,
-                             seed=seed * 100_003 + n, sky=self.sky[n], q=self.q[n])
+                             seed=seed * 100_003 + n, sky=self.sky[n], q=self.q[n],
+                             wing=compose.wing_key(p.get("image")))
 
     def measure_frames(self, state, ns):
         """[(n, (mag, err, saturated), candidate features or None)] of the star in frames ns, measured as hdps would."""
@@ -323,10 +333,11 @@ class Night:
                                          background=float(self.sky[n] * ratio), extent=comp["extent"])
         return self._exposure[n]
 
-    def draw(self, fig, n):
+    def draw(self, fig, n, view=None):
         """Movie frame n (of the pack's frames) drawn into fig by night_movie.MovieFrame, the movie's own drawing: the
-        figure built once for the current star (on the first frame after a change), each frame drawn over it. The
-        frame's RGBA image (the canvas's buffer)."""
+        figure built once for the current star (on the first frame after a change), each frame drawn over it; view
+        (zoom, x, y): the image panels magnified about (x, y) arcsec (None: as the movie shows them). The frame's RGBA
+        image (the canvas's buffer)."""
         nm, d, frames = self.nm, self.d, self.frames
         if (self._movie_for is None or self._movie_for[0] is not fig or self._movie_for[1] is not self.state
                 or not any(ax is self._movie.cmd for ax in fig.axes)):  # (or the figure was cleared meanwhile)
@@ -339,14 +350,35 @@ class Night:
         d["history"] = {k: dict(t=t, m=list(v["m"][:n + 1]), e=list(v["e"][:n + 1]), true=list(v["true"][:n + 1]))
                         for k, v in self._series.items()}
         movie.update({self.band: self.exposure(n)}, j)
+        self._zoom(movie, view)
         return movie.render()
 
-    def frame_image(self, fig, n, quality=92):
+    @staticmethod
+    def _zoom(movie, view):
+        """The exposure and difference panels (they share their axes) magnified by zoom about (x, y), kept inside the
+        movie's own view (zoom 1). A change of view redraws the background the frames are drawn over (it holds the
+        tick labels)."""
+        if not hasattr(movie, "home"):
+            movie.home, movie.view = (*movie.image_ax.get_xlim(), *movie.image_ax.get_ylim()), None
+        x0, x1, y0, y1 = movie.home
+        zoom, x, y = view if view is not None else (1.0, 0.0, 0.0)
+        limits = movie.home
+        if zoom > 1:
+            hx, hy = (x1 - x0) / 2 / zoom, (y1 - y0) / 2 / zoom
+            x = min(max(x, min(x0, x1) + abs(hx)), max(x0, x1) - abs(hx))
+            y = min(max(y, min(y0, y1) + abs(hy)), max(y0, y1) - abs(hy))
+            limits = (x - hx, x + hx, y - hy, y + hy)
+        if limits != movie.view:
+            movie.image_ax.set(xlim=limits[:2], ylim=limits[2:])
+            movie._background = None  # (MovieFrame.render draws it again)
+            movie.view = limits
+
+    def frame_image(self, fig, n, quality=92, view=None):
         """Movie frame n as a JPEG (fig: a figure at the dpi wanted; full colour resolution, quality 92: finer than the
-        movie's own h264)."""
+        movie's own h264); view as draw's."""
         from PIL import Image
 
-        rgba = self.draw(fig, n)
+        rgba = self.draw(fig, n, view)
         image = Image.frombuffer("RGBA", fig.canvas.get_width_height(physical=True), rgba, "raw", "RGBA", 0, 1)
         buf = io.BytesIO()
         image.convert("RGB").save(buf, "JPEG", quality=quality, subsampling=0)

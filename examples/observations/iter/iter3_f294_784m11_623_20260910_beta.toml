@@ -1,0 +1,79 @@
+# Alerts fix iteration 3 (2026-10-26): iter2 (true calibration, star placement fixed) plus
+# - the PSF in a 121 px box with the halo measured on sky (H. Corbett, synthref halo_measure.py) added and the Zemax
+#   optics tapered to a circle: no square around bright stars, no ringing from the sub-pixel shift;
+# - hdps (local hdps_v4, uncommitted): Hank's SFFT kernel-orientation fix (77a556d0, PR #459) and the reference coadd
+#   from the frame's own camera (another camera's when it has none; counted in the log).
+# iter2: 112 of 112 exposures, 5066 packets, 195 unmatched (3.8%), bright-star |diff|/flux 0.092, dipole 0.048 px.
+[field]
+name = "iter3_f294_784m11_623_20260910_beta"
+ra = 294.784
+dec = -11.623
+
+[night]
+date = "2026-09-10"
+nights = 1
+
+[stars]
+background = "f294_784m11_623_field"
+layout = "real"
+
+[inject]
+number = 200
+seed = 1000
+
+[image]
+psf_wing = false
+psf_box = 121
+psf_halo = true
+
+[output]
+bands = ["beta"]
+movie = true
+pipeline_movie = true
+movie_data = true
+lightcurves = false
+catalogues = false
+stride = 1
+
+[[hdps.tasks]]
+type = "DataCleanupTask"
+
+[[hdps.tasks]]
+type = "ImageReductionTask"
+
+[[hdps.tasks]]
+type = "SourceDetectionTask"
+
+[[hdps.tasks]]
+type = "SourceFilterTask"
+
+[[hdps.tasks]]
+type = "TrueCalibrationTask"  # in place of ReferenceRetrieval, LinearWCSSolver, SourceMatching, TPVWCSSolver
+
+[[hdps.tasks]]
+type = "LightweightFITSOutputTask"
+
+[[hdps.tasks]]
+type = "ReprojectionTask"
+
+[[hdps.tasks]]
+type = "CoaddTapTask"
+
+[[hdps.tasks]]
+type = "SFFTSubtractionTask"
+
+[[hdps.tasks]]
+type = "DiffDetectionTask"
+
+[[hdps.tasks]]
+type = "TransientOutputTask"
+
+[[hdps.tasks]]
+type = "AlertVettingTask"
+[hdps.tasks.config]
+model_bundle = "data/rb/bundle_v1"
+score_cut = "fa10"
+emit_all_candidates = true
+
+[[hdps.tasks]]
+type = "TileImageOutputTask"

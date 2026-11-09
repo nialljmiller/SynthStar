@@ -1,0 +1,23 @@
+# AGB long-period-variable pilot: a few AGBs branched from the saved MESA TP-AGB structures (grids/lpv_tracks.py).
+# Placed at 5 kpc (a different distance can be given in [[place]]). See mesa_argus/sources/agb.py for the honest
+# fidelity limit (the cool AGB tip is below the 3500 K Kurucz grid edge -> grey variability).
+[[star]]
+name = "agb_mira_m2_p232_v2"     # P ~ 232 d; AGB tip 3211 K (below the grid -> grey/bolometric only)
+generator = "AGB variable"
+track = "M02.00_MH+0.0_a1.98_lpv_checkpoint"
+distance = 5000.0
+
+[[star]]
+name = "agb_mira_m3_p128_v2"     # P ~ 128 d; tip 3447 K (~44% of the cycle on-grid -> partial colour swing)
+generator = "AGB variable"
+track = "M03.00_MH+0.0_a1.98_lpv_checkpoint"
+distance = 5000.0
+
+[[star]]
+name = "agb_srv_m2_lowamp_v2"    # low-amplitude semiregular: 0.4 mag, symmetric
+generator = "AGB variable"
+track = "M02.00_MH+0.0_a1.98_lpv_checkpoint"
+distance = 5000.0
+amp_bol = 0.4
+teff_swing = 250.0
+rise_fraction = 0.5

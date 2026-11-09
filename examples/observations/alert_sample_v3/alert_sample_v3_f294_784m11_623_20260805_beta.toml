@@ -1,0 +1,81 @@
+# Alert sample v3 (2026-10-29): alert_sample_v2's field, night, band and injection seed, every exposure, on the rb4
+# training nights' pipeline and engine (array layout A170r_1200; hdps alert-v4-local with the alert step's science and
+# circle photometry, zero points, limits, flags and packet fixes of 2026-10-28). Real/bogus model
+# data/rb/bundle_v4_interim (trained on the first 35 rb4 night-bands, 13 fields, all Moon phases, mask off), score_cut
+# fa10; every candidate in alerts.csv, packets for the accepted. Held-out field: never in training.
+[field]
+name = "alert_sample_v3_f294_784m11_623_20260805_beta"
+ra = 294.784
+dec = -11.623
+
+[night]
+date = "2026-08-05"
+nights = 1
+reference_nights = 5
+reference_ratchets = 1
+
+[stars]
+background = "f294_784m11_623_field"
+layout = "real"
+photometry_workers = 8  # forked (Linux): newton and vega; the results do not depend on it
+
+[inject]
+number = 200
+seed = 1003
+
+[image]
+psf_box = 121
+psf_halo = true
+psf_seeing_step = 0.02
+
+[output]
+bands = ["beta"]
+movie = false
+pipeline_movie = false
+movie_data = false
+movie_window_px = 0
+lightcurves = false
+stride = 1
+
+[[hdps.tasks]]
+type = "DataCleanupTask"
+
+[[hdps.tasks]]
+type = "ImageReductionTask"
+
+[[hdps.tasks]]
+type = "SourceDetectionTask"
+
+[[hdps.tasks]]
+type = "SourceFilterTask"
+
+[[hdps.tasks]]
+type = "TrueCalibrationTask"
+
+[[hdps.tasks]]
+type = "LightweightFITSOutputTask"
+
+[[hdps.tasks]]
+type = "ReprojectionTask"
+
+[[hdps.tasks]]
+type = "CoaddTapTask"
+
+[[hdps.tasks]]
+type = "SFFTSubtractionTask"
+
+[[hdps.tasks]]
+type = "DiffDetectionTask"
+
+[[hdps.tasks]]
+type = "TransientOutputTask"
+
+[[hdps.tasks]]
+type = "AlertVettingTask"
+[hdps.tasks.config]
+model_bundle = "data/rb/bundle_v4_interim"
+score_cut = "fa10"
+emit_all_candidates = true
+
+[[hdps.tasks]]
+type = "TileImageOutputTask"

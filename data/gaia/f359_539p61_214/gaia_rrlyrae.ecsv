@@ -1,6 +1,618 @@
 # %ECSV 1.0
 # ---
 # datatype:
-# - {name: Source, datatype: int64}
+# - name: _r
+#   datatype: float64
+#   format: '{:8.6f}'
+#   description: Distance from center (359.53901638000+61.21400257000)[ICRS], at Epoch=J2016.0
+#   meta: !!omap
+#   - {ucd: POS_ANG_DIST_GENERAL}
+#   - {width: 8}
+#   - {precision: '6'}
+# - name: recno
+#   datatype: int32
+#   description: Record number assigned by the VizieR team. Should Not be used for identification.
+#   meta: !!omap
+#   - {ucd: RECORD}
+#   - {width: 8}
+# - name: Harm
+#   datatype: string
+#   description: Display the harmonics
+#   meta: !!omap
+#   - {ucd: DATA_LINK}
+#   - {_votable_string_dtype: char}
+# - name: Source
+#   datatype: int64
+#   description: Unique source identifier (source_id)
+#   meta: !!omap
+#   - {ucd: ID_MAIN}
+#   - {width: 19}
+# - name: SolID
+#   datatype: int64
+#   description: Solution Identifier (solution_id)
+#   meta: !!omap
+#   - {ucd: ID_VERSION}
+#   - {width: 18}
+# - name: PF
+#   unit: d
+#   datatype: float64
+#   format: '{:20.17f}'
+#   description: '? Period corresponding to the fundamental pulsation mode in the G band time series (pf)'
+#   meta: !!omap
+#   - {ucd: TIME_PERIOD}
+#   - {width: 20}
+#   - {precision: '17'}
+#   - values: {'null': .nan}
+# - name: e_PF
+#   unit: d
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Uncertainty of the PF period (pf_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: P1O
+#   unit: d
+#   datatype: float64
+#   format: '{:20.17f}'
+#   description: '? Period corresponding to the first overtone pulsation mode in the G band time series (p1_o)'
+#   meta: !!omap
+#   - {ucd: TIME_PERIOD}
+#   - {width: 20}
+#   - {precision: '17'}
+#   - values: {'null': .nan}
+# - name: e_P1O
+#   unit: d
+#   datatype: float64
+#   format: '{:14.7g}'
+#   description: '? Uncertainty of the P1O period (p1_o_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 14}
+#   - {precision: E7}
+#   - values: {'null': .nan}
+# - name: EpochG
+#   unit: d
+#   datatype: float64
+#   format: '{:18.13f}'
+#   description: Epoch of the maximum of the light curve in the G band (epoch_g)
+#   meta: !!omap
+#   - {ucd: TIME_EPOCH}
+#   - {width: 18}
+#   - {precision: '13'}
+# - name: e_EpochG
+#   unit: d
+#   datatype: float64
+#   format: '{:14.7g}'
+#   description: Uncertainty on the epoch parameter EpochG (epoch_g_error)
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 14}
+#   - {precision: E7}
+# - name: EpochBP
+#   unit: d
+#   datatype: float64
+#   format: '{:18.13f}'
+#   description: '? Epoch of the maximum of the light curve in the BP band (epoch_bp)'
+#   meta: !!omap
+#   - {ucd: TIME_EPOCH}
+#   - {width: 18}
+#   - {precision: '13'}
+#   - values: {'null': .nan}
+# - name: e_EpochBP
+#   unit: d
+#   datatype: float64
+#   format: '{:14.7g}'
+#   description: '? Uncertainty on the epoch parameter EpochBP (epoch_bp_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 14}
+#   - {precision: E7}
+#   - values: {'null': .nan}
+# - name: EpochRP
+#   unit: d
+#   datatype: float64
+#   format: '{:18.13f}'
+#   description: '? Epoch of the maximum of the light curve in the RP band (epoch_rp)'
+#   meta: !!omap
+#   - {ucd: TIME_EPOCH}
+#   - {width: 18}
+#   - {precision: '13'}
+#   - values: {'null': .nan}
+# - name: e_EpochRP
+#   unit: d
+#   datatype: float64
+#   format: '{:14.7g}'
+#   description: '? Uncertainty on the epoch parameter EpochRP (epoch_rp_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 14}
+#   - {precision: E7}
+#   - values: {'null': .nan}
+# - name: EpochRV
+#   unit: d
+#   datatype: float64
+#   format: '{:18.13f}'
+#   description: '? Epoch of the minimum of the radial velocity curve (epoch_rv)'
+#   meta: !!omap
+#   - {ucd: TIME_EPOCH}
+#   - {width: 18}
+#   - {precision: '13'}
+#   - values: {'null': .nan}
+# - name: e_EpochRV
+#   unit: d
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Uncertainty on the epoch parameter EpochRV (epoch_rv_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: Gmagavg
+#   unit: mag
+#   datatype: float64
+#   format: '{:10.7f}'
+#   description: Intensity-averaged magnitude in the G band (int_average_g)
+#   meta: !!omap
+#   - {ucd: PHOT_MAG_OPTICAL}
+#   - {width: 10}
+#   - {precision: '7'}
+# - name: e_Gmagavg
+#   unit: mag
+#   datatype: float64
+#   format: '{:14.7g}'
+#   description: Uncertainty on Gmagavg parameter (int_average_g_error)
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 14}
+#   - {precision: E7}
+# - name: BPmagavg
+#   unit: mag
+#   datatype: float64
+#   format: '{:11.7f}'
+#   description: '? Intensity-averaged magnitude in the BP band (int_average_bp)'
+#   meta: !!omap
+#   - {ucd: PHOT_MAG_B}
+#   - {width: 11}
+#   - {precision: '7'}
+#   - values: {'null': .nan}
+# - name: e_BPmagavg
+#   unit: mag
+#   datatype: float64
+#   format: '{:14.7g}'
+#   description: '? Uncertainty on BPmagavg parameter (int_average_bp_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 14}
+#   - {precision: E7}
+#   - values: {'null': .nan}
+# - name: RPmagavg
+#   unit: mag
+#   datatype: float64
+#   format: '{:11.7f}'
+#   description: '? Intensity-averaged magnitude in the RP band (int_average_rp)'
+#   meta: !!omap
+#   - {ucd: PHOT_MAG_R}
+#   - {width: 11}
+#   - {precision: '7'}
+#   - values: {'null': .nan}
+# - name: e_RPmagavg
+#   unit: mag
+#   datatype: float64
+#   format: '{:14.7g}'
+#   description: '? Uncertainty on RPmagavg parameter (int_average_rp_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 14}
+#   - {precision: E7}
+#   - values: {'null': .nan}
+# - name: RVavg
+#   unit: km / s
+#   datatype: float64
+#   format: '{:14.9f}'
+#   description: '? Mean radial velocity (average_rv)'
+#   meta: !!omap
+#   - {ucd: VELOC_MEAN}
+#   - {width: 14}
+#   - {precision: '9'}
+#   - values: {'null': .nan}
+# - name: e_RVavg
+#   unit: km / s
+#   datatype: float64
+#   format: '{:11.8f}'
+#   description: '? Uncertainty on RVavg parameter (average_rv_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 11}
+#   - {precision: '8'}
+#   - values: {'null': .nan}
+# - name: ptpG
+#   unit: mag
+#   datatype: float64
+#   format: '{:12.9f}'
+#   description: Peak-to-peak amplitude of the G band light curve (peak_to_peak_g)
+#   meta: !!omap
+#   - {ucd: VAR_AMPLITUDE_VALUE}
+#   - {width: 12}
+#   - {precision: '9'}
+# - name: e_ptpG
+#   unit: mag
+#   datatype: float64
+#   format: '{:14.7g}'
+#   description: Uncertainty on the ptpG parameter (peak_to_peak_g_error)
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 14}
+#   - {precision: E7}
+# - name: ptpBP
+#   unit: mag
+#   datatype: float64
+#   format: '{:14.10f}'
+#   description: '? Peak-to-peak amplitude of the BP band light curve (peak_to_peak_bp)'
+#   meta: !!omap
+#   - {ucd: VAR_AMPLITUDE_VALUE}
+#   - {width: 14}
+#   - {precision: '10'}
+#   - values: {'null': .nan}
+# - name: e_ptpBP
+#   unit: mag
+#   datatype: float64
+#   format: '{:14.7g}'
+#   description: '? Uncertainty on the ptpBP parameter (peak_to_peak_bp_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 14}
+#   - {precision: E7}
+#   - values: {'null': .nan}
+# - name: ptpRP
+#   unit: mag
+#   datatype: float64
+#   format: '{:13.10f}'
+#   description: '? Peak-to-peak amplitude of the RP band light curve (peak_to_peak_rp)'
+#   meta: !!omap
+#   - {ucd: VAR_AMPLITUDE_VALUE}
+#   - {width: 13}
+#   - {precision: '10'}
+#   - values: {'null': .nan}
+# - name: e_ptpRP
+#   unit: mag
+#   datatype: float64
+#   format: '{:14.7g}'
+#   description: '? Uncertainty on the ptpRP parameter (peak_to_peak_rp_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 14}
+#   - {precision: E7}
+#   - values: {'null': .nan}
+# - name: ptpRV
+#   unit: km / s
+#   datatype: float64
+#   format: '{:20.16f}'
+#   description: '? Peak-to-peak amplitude of the radial velocity curve (peak_to_peak_rv)'
+#   meta: !!omap
+#   - {ucd: ORBIT_RV_S-AMPLITUDE}
+#   - {width: 20}
+#   - {precision: '16'}
+#   - values: {'null': .nan}
+# - name: e_ptpRV
+#   unit: km / s
+#   datatype: float64
+#   format: '{:20.16f}'
+#   description: '? Uncertainty on the ptpRV parameter (peak_to_peak_rv_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 20}
+#   - {precision: '16'}
+#   - values: {'null': .nan}
+# - name: '[M/H]'
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Metallicity of the star from the Fourier parameters of the light curve (metallicity)'
+#   meta: !!omap
+#   - {ucd: PHYS_ABUND_Z}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: e_[M/H]
+#   datatype: float64
+#   format: '{:11.8f}'
+#   description: '? Uncertainty of the [M/H] parameter (metallicity_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 11}
+#   - {precision: '8'}
+#   - values: {'null': .nan}
+# - name: R21G
+#   datatype: float64
+#   format: '{:12.9f}'
+#   description: '? Fourier decomposition parameter R21G: A2/A1 (for G band) (r21_g)'
+#   meta: !!omap
+#   - {ucd: VAR_FREQ}
+#   - {width: 12}
+#   - {precision: '9'}
+#   - values: {'null': .nan}
+# - name: e_R21G
+#   datatype: float64
+#   format: '{:13.10f}'
+#   description: '? Uncertainty on the R21G parameter: A2/A1 (for G band) (r21_g_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 13}
+#   - {precision: '10'}
+#   - values: {'null': .nan}
+# - name: R31G
+#   datatype: float64
+#   format: '{:12.9f}'
+#   description: '? Fourier decomposition parameter R31G: A3/A1 (for G band) (r31_g)'
+#   meta: !!omap
+#   - {ucd: VAR_FREQ}
+#   - {width: 12}
+#   - {precision: '9'}
+#   - values: {'null': .nan}
+# - name: e_R31G
+#   datatype: float64
+#   format: '{:13.10f}'
+#   description: '? Uncertainty on the R31G parameter: A3/A1 (for G band) (r31_g_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 13}
+#   - {precision: '10'}
+#   - values: {'null': .nan}
+# - name: phi21G
+#   unit: rad
+#   datatype: float64
+#   format: '{:10.7f}'
+#   description: '? Fourier decomposition parameter phi21G: phi2 - 2*phi1 (for G band) (phi21_g)'
+#   meta: !!omap
+#   - {ucd: FIT_PARAM_VALUE}
+#   - {width: 10}
+#   - {precision: '7'}
+#   - values: {'null': .nan}
+# - name: e_phi21G
+#   unit: rad
+#   datatype: float64
+#   format: '{:14.10f}'
+#   description: '? Uncertainty on the phi21G parameter: phi2 - 2*phi1 (for G band) (phi21_g_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 14}
+#   - {precision: '10'}
+#   - values: {'null': .nan}
+# - name: phi31G
+#   unit: rad
+#   datatype: float64
+#   format: '{:12.9f}'
+#   description: '? Fourier decomposition parameter phi31G: phi3 - 3*phi1 (for G band) (phi31_g)'
+#   meta: !!omap
+#   - {ucd: FIT_PARAM_VALUE}
+#   - {width: 12}
+#   - {precision: '9'}
+#   - values: {'null': .nan}
+# - name: e_phi31G
+#   unit: rad
+#   datatype: float64
+#   format: '{:13.10f}'
+#   description: '? Uncertainty on the phi31G parameter: phi3 - 3*phi1 (for G band) (phi31_g_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 13}
+#   - {precision: '10'}
+#   - values: {'null': .nan}
+# - name: NclEpG
+#   datatype: int16
+#   description: Number of G FoV epochs used in the fitting algorithm (num_clean_epochs_g)
+#   meta: !!omap
+#   - {ucd: NUMBER}
+#   - {width: 3}
+# - name: NclEpBP
+#   datatype: int16
+#   description: Number of BP epochs used in the fitting algorithm (num_clean_epochs_bp)
+#   meta: !!omap
+#   - {ucd: NUMBER}
+#   - {width: 3}
+# - name: NclEpRP
+#   datatype: int16
+#   description: Number of RP epochs used in the fitting algorithm (num_clean_epochs_rp)
+#   meta: !!omap
+#   - {ucd: NUMBER}
+#   - {width: 3}
+# - name: NclEpRV
+#   datatype: int16
+#   description: '? Number of radial velocity epochs used in the fitting algorithm (num_clean_epochs_rv)'
+#   meta: !!omap
+#   - {ucd: NUMBER}
+#   - {width: 2}
+#   - values: {'null': -32768}
+# - name: zpmagG
+#   unit: mag
+#   datatype: float64
+#   format: '{:10.7f}'
+#   description: Zero point (mag) of the final model of the G band light curve (zp_mag_g)
+#   meta: !!omap
+#   - {ucd: FIT_ZP}
+#   - {width: 10}
+#   - {precision: '7'}
+# - name: zpmagBP
+#   unit: mag
+#   datatype: float64
+#   format: '{:11.7f}'
+#   description: '? Zero point (mag) of the final model of the BP band light curve (zp_mag_bp)'
+#   meta: !!omap
+#   - {ucd: FIT_ZP}
+#   - {width: 11}
+#   - {precision: '7'}
+#   - values: {'null': .nan}
+# - name: zpmagRP
+#   unit: mag
+#   datatype: float64
+#   format: '{:10.7f}'
+#   description: '? Zero point (mag) of the final model of the RP band light curve (zp_mag_rp)'
+#   meta: !!omap
+#   - {ucd: FIT_ZP}
+#   - {width: 10}
+#   - {precision: '7'}
+#   - values: {'null': .nan}
+# - name: NHP1G
+#   datatype: int16
+#   description: '[1/11] Number of harmonics used to model the first periodicity of the G-band light curve (num_harmonics_for_p1_g)'
+#   meta: !!omap
+#   - {ucd: NUMBER}
+#   - {width: 2}
+# - name: NHP1BP
+#   datatype: int16
+#   description: '[1/20] Number of harmonics used to model the first periodicity of the BP-band light curve (num_harmonics_for_p1_bp)'
+#   meta: !!omap
+#   - {ucd: NUMBER}
+#   - {width: 2}
+# - name: NHP1RP
+#   datatype: int16
+#   description: '[1/20] Number of harmonics used to model the first periodicity of the RP-band light curve (num_harmonics_for_p1_rp)'
+#   meta: !!omap
+#   - {ucd: NUMBER}
+#   - {width: 2}
+# - name: NHP1RV
+#   datatype: uint8
+#   description: '[0/6]? Number of harmonics used to model the first periodicity of the radial velocity curve (num_harmonics_for_p1_rv)'
+#   meta: !!omap
+#   - {ucd: NUMBER}
+#   - {width: 1}
+#   - values: {'null': 255}
+# - name: TimeRefG
+#   unit: d
+#   datatype: float64
+#   format: '{:18.13f}'
+#   description: Reference time of the Fourier modelled G-band light curve, JD-2455197.5 (reference_time_g)
+#   meta: !!omap
+#   - {ucd: TIME_EPOCH}
+#   - {width: 18}
+#   - {precision: '13'}
+# - name: TimeRefBP
+#   unit: d
+#   datatype: float64
+#   format: '{:18.13f}'
+#   description: '? Reference time of the Fourier modelled BP-band light curve, JD-2455197.5 (reference_time_bp)'
+#   meta: !!omap
+#   - {ucd: TIME_EPOCH}
+#   - {width: 18}
+#   - {precision: '13'}
+#   - values: {'null': .nan}
+# - name: TimeRefRP
+#   unit: d
+#   datatype: float64
+#   format: '{:18.13f}'
+#   description: '? Reference time of the Fourier modelled RP-band light curve, JD-2455197.5 (reference_time_rp)'
+#   meta: !!omap
+#   - {ucd: TIME_EPOCH}
+#   - {width: 18}
+#   - {precision: '13'}
+#   - values: {'null': .nan}
+# - name: TimeRefRV
+#   unit: d
+#   datatype: float64
+#   format: '{:18.13f}'
+#   description: '? Reference time of the Fourier modelled radial velocity curve, JD-2455197.5 (reference_time_rv)'
+#   meta: !!omap
+#   - {ucd: TIME_EPOCH}
+#   - {width: 18}
+#   - {precision: '13'}
+#   - values: {'null': .nan}
+# - name: FundFreq1
+#   unit: 1 / d
+#   datatype: float64
+#   format: '{:19.16f}'
+#   description: First frequency of the non-linear Fourier modelling (fund_freq1)
+#   meta: !!omap
+#   - {ucd: VAR_FREQ}
+#   - {width: 19}
+#   - {precision: '16'}
+# - name: e_FundFreq1
+#   unit: 1 / d
+#   datatype: float64
+#   format: '{:14.7g}'
+#   description: Error of the first frequency of the non-linear Fourier modelling (fund_freq1_error)
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 14}
+#   - {precision: E7}
+# - name: FundFreq2
+#   unit: 1 / d
+#   datatype: float64
+#   format: '{:19.16f}'
+#   description: '? Second frequency of the non-linear Fourier modelling in the G band (fund_freq2)'
+#   meta: !!omap
+#   - {ucd: VAR_FREQ}
+#   - {width: 19}
+#   - {precision: '16'}
+#   - values: {'null': .nan}
+# - name: e_FundFreq2
+#   unit: 1 / d
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Error of the second frequency of the non-linear Fourier modelling in the G band (fund_freq2_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: Class
+#   datatype: string
+#   description: '[Rabcd ] Best RR Lyrae classification estimate (best_classification) (1)'
+#   meta: !!omap
+#   - {ucd: CLASS_CODE}
+#   - {_votable_string_dtype: char}
+# - name: AG
+#   unit: mag
+#   datatype: float64
+#   format: '{:16.9g}'
+#   description: '? Interstellar absorption in the G-band (g_absorption)'
+#   meta: !!omap
+#   - {ucd: PHOT_EXTINCTION_ISM}
+#   - {width: 16}
+#   - {precision: E9}
+#   - values: {'null': .nan}
+# - name: e_AG
+#   unit: mag
+#   datatype: float64
+#   format: '{:15.9f}'
+#   description: '? Error on the interstellar absorption in the G-band (g_absorption_error)'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 15}
+#   - {precision: '9'}
+#   - values: {'null': .nan}
+# - name: RA_ICRS
+#   unit: deg
+#   datatype: float64
+#   format: '{:15.11f}'
+#   description: Right ascension (ICRS) at Ep=2016.0 (ra) (ra)
+#   meta: !!omap
+#   - {ucd: POS_EQ_RA_MAIN}
+#   - {width: 15}
+#   - {precision: '11'}
+# - name: DE_ICRS
+#   unit: deg
+#   datatype: float64
+#   format: '{:15.11f}'
+#   description: Declination (ICRS) at Ep=2016.0 (dec) (dec)
+#   meta: !!omap
+#   - {ucd: POS_EQ_DEC_MAIN}
+#   - {width: 15}
+#   - {precision: '11'}
+# meta: !!omap
+# - {ID: I_358_vrrlyr}
+# - {name: I/358/vrrlyr}
+# - {description: RR Lyrae stars (vari_rrlyrae)}
+# - {radius_deg: 0.52}
 # schema: astropy-2.0
-Source
+_r recno Harm Source SolID PF e_PF P1O e_P1O EpochG e_EpochG EpochBP e_EpochBP EpochRP e_EpochRP EpochRV e_EpochRV Gmagavg e_Gmagavg BPmagavg e_BPmagavg RPmagavg e_RPmagavg RVavg e_RVavg ptpG e_ptpG ptpBP e_ptpBP ptpRP e_ptpRP ptpRV e_ptpRV [M/H] e_[M/H] R21G e_R21G R31G e_R31G phi21G e_phi21G phi31G e_phi31G NclEpG NclEpBP NclEpRP NclEpRV zpmagG zpmagBP zpmagRP NHP1G NHP1BP NHP1RP NHP1RV TimeRefG TimeRefBP TimeRefRP TimeRefRV FundFreq1 e_FundFreq1 FundFreq2 e_FundFreq2 Class AG e_AG RA_ICRS DE_ICRS
+0.272445 14547 Harm 2011695439439093632 375316653866487565 "" "" 0.2746118318780787 1.2159761e-06 1697.264423508654 1.7196498e-06 1697.2960533269516 4.9989172e-05 1697.2532445335391 1.635158e-05 "" "" 19.61713 0.0026564181 20.317764 0.09279629 18.610489 0.01936414 "" "" 0.2917825 0.008773543 0.27802515 0.22312847 0.26233527 0.08269762 "" "" "" "" 0.08890616 0.017794326 "" "" 4.7022667 0.44367585 "" "" 47 43 43 "" 19.62055 20.320992 18.61309 2 1 1 "" 1698.073704577199 1698.0739985089415 1698.0740839962575 "" 3.641503693271224 1.612451e-05 "" "" RRc "" "" 359.75305176348 60.96197389307
+0.232031 14548 Harm 2011697093004699904 375316653866487565 "" "" 0.247000593442702 8.596513e-07 1697.5071353268827 1.2157305e-06 1776.349653916833 1.7665852e-05 1776.3554174079802 9.55868e-06 "" "" 18.559223 0.0028608805 19.203302 0.033554982 17.71797 0.013499809 "" "" 0.29898322 0.008862934 0.3124415 0.11522465 0.22225358 0.040347625 "" "" "" "" 0.15375583 0.02038097 "" "" 4.8627806 0.22250238 "" "" 51 26 25 "" 18.563265 19.20763 17.719559 2 1 1 "" 1698.1476078656797 1776.8784519044789 1776.8785398619207 "" 4.048573268841053 1.4090499e-05 "" "" RRc "" "" 359.90193309903 61.06185007656
+0.178385 14549 Harm 2011698879716758400 375316653866487565 "" "" 0.25933666964829416 1.0897898e-05 1697.5435228694037 1.5411955e-05 "" "" "" "" "" "" 20.236412 0.02735813 "" "" "" "" "" "" 0.28988805 0.061780404 "" "" "" "" "" "" "" "" 1.1236118 0.36586803 "" "" 4.2296357 0.7372895 "" "" 31 11 13 "" 20.238218 "" "" 2 20 20 "" 1698.0736070221649 "" "" "" 3.855991523898933 0.00016203726 "" "" RRc "" "" 359.53720080162 61.03561958645
+0.176642 14555 Harm 2011897582087225856 375316653866487565 0.5068931459894687 2.406471e-06 "" "" 1696.6668722993682 3.4032637e-06 1696.6803825083732 7.676984e-06 1696.6789171130565 6.6229018e-06 "" "" 16.27082 0.0022758702 17.111645 0.008771745 15.354417 0.0062446333 "" "" 0.6096736 0.022844054 0.74891424 0.027497288 0.4706255 0.014034307 "" "" -0.050615884 0.21859542 0.4994507 0.01725256 0.32300436 0.0238505 4.50981 0.038589798 2.8697507 0.06565363 52 52 51 "" 16.28461 17.13404 15.362739 5 3 3 "" 1698.073500779489 1698.0738155695944 1698.073902484828 "" 1.9728023705034992 9.365863e-06 "" "" RRab 2.218828 0.061043363 359.21235836655 61.1340229044
+0.124677 14556 Harm 2011902839119065600 375316653866487565 0.6877382601517528 3.9166272e-05 "" "" 1732.096095122658 5.538947e-05 1731.7918179513501 8.413095e-05 1732.141864968897 0.00028764107 "" "" 20.676952 0.029136002 20.48799 0.20024978 19.355001 0.083754934 "" "" 0.2559984 0.11293743 0.3311749 0.7520909 0.29795852 0.30963898 "" "" "" "" 0.5217537 0.18597393 "" "" 4.03326 0.5693351 "" "" 24 16 15 "" 20.67888 20.493198 19.359034 2 1 1 "" 1733.6909601479497 1733.691274693703 1733.691362871214 "" 1.4540415415878494 8.280677e-05 "" "" RRab 4.0837264 0.49228704 359.41819074215 61.32432519703
+0.333865 14557 Harm 2011961731716003712 375316653866487565 0.6109645796942034 2.2160777e-05 "" "" 1696.326530858998 3.134007e-05 1696.8789783030338 0.000165054 1696.39810442518 7.9978076e-05 "" "" 20.233358 0.017092664 20.431072 0.10183447 19.273525 0.03491372 "" "" 0.4687053 0.0552419 0.5736018 0.40960744 0.41831633 0.11633427 "" "" "" "" 0.63917875 0.10839811 "" "" 3.9764204 0.27989194 "" "" 41 34 35 "" 20.24125 20.448313 19.28222 2 1 1 "" 1698.1472053064867 1698.1475681681477 1698.147655688997 "" 1.636756095583339 5.9368067e-05 "" "" RRab 2.3223326 0.21019064 359.63484176278 61.54469773211
+0.410315 111664 Harm 429488934247825536 375316653866487565 "" "" 0.30553244777338767 4.815662e-06 1697.2507221364015 6.8103745e-06 1697.246751260188 1.0679144e-05 1697.256021626901 9.195362e-06 "" "" 14.668078 0.0074735894 15.11442 0.006975323 14.040129 0.0058698463 "" "" 0.1605262 0.015210026 0.1878046 0.027000125 0.12615691 0.01836702 "" "" "" "" "" "" "" "" "" "" "" "" 58 57 56 "" 14.668325 15.115181 14.039846 1 1 1 "" 1698.1474598706163 1698.1477748687344 1698.14786050227 "" 3.2729747929807327 5.1587125e-05 "" "" RRc "" "" 0.33738378034 61.35976537726
+0.462366 111704 Harm 429519617490941312 375316653866487565 0.4374079382443471 1.9354575e-05 "" "" 1732.6115018469472 2.7371501e-05 "" "" "" "" "" "" 20.654451 0.014965834 "" "" "" "" "" "" 0.31911746 0.046965495 "" "" "" "" "" "" "" "" 0.5186514 0.15319312 "" "" 3.887633 0.3142458 "" "" 23 9 11 "" 20.658188 "" "" 2 20 20 "" 1733.6910246385341 "" "" "" 2.2861953626488023 0.00010116035 "" "" RRab "" "" 0.00998907022 61.61774560155

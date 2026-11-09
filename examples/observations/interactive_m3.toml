@@ -5,12 +5,10 @@ name = "interactive_m3"
 ra = 205.548
 dec = 28.377
 block = 9
-window_offset = [0.0, -7.0]  # the readout window's centre 7' south of the core, the block still on it: centred on the
-# core, hdps's linear WCS solver starts from a 0.1-3' circle of crowded detections and locks onto false alignments
-# (pixel scale 5-15x wrong; 13 of 228 beta frames right, 2026-05-01 night); at 7' the circle holding its 150
-# detections has radius ~6.8' (min 4.3'), as the frames that solved right (~5')
 
 [night]
+reference_nights = 5  # (2026-10-27) with reference_ratchets: each telescope's sharpest ratchet of 5 nights (M67: science frames sharper than their camera's reference 87% -> 8%; every camera its own reference)
+reference_ratchets = 1  # (2026-10-27) M67 beta, 8 frames: hdps candidates 676 -> 465 per frame, real/bogus-accepted 318 -> 192; M3 803 -> 693, 252 -> 216 (9 frames: hdps failed on a 10th); M45 124 -> 138, 38 -> 42
 date = "2026-05-16"  # new moon (2026-05-01 was full, the Moon 46 deg from M3)
 nights = 1
 
@@ -18,9 +16,19 @@ nights = 1
 background = "m3_field"
 layout = "real"
 
+[image]
+psf_wing = false  # off (2026-10-26): M45 beta, 10 exposures, chi2/px at bright stars in the difference 2.4 without the wing, 7.0 with it to 30 px, 8.2 to 400 px (stars over-subtracted; to 400 px also blotchy background)
+psf_box = 121  # on (2026-10-27): the PSF in a 121 px box, so a bright star's light no longer stops at the 28 px stamp's square edge (the square showed in the exposure and the difference)
+psf_halo = true  # on (2026-10-27): the on-sky halo (H. Corbett) beyond ArgusSim's 14.5 px optics, optics tapered to a circle; as the alerts chat's iter3 (f294: no square, bright-star |diff|/flux as iter2)
+
+[argussim.telescope]
+psf_model = "gaussian"  # (2026-10-27) the Zemax PSF models are under NDA and may not appear in anything public, images drawn with them included (user): ArgusSim's Gaussian spot (spot_size) with the Moffat seeing
+
 [output]
 movie = false
 pipeline_movie = false
+movie_window_px = 0  # the pack keeps the block's tile only (the notebook draws no window mosaic); the window view makes hdps write every tile, 123 MB per frame against 32 MB, ~25-30 GB more at peak for a 310-exposure night
+movie_mask_reference_e = 0  # (2026-10-27) off: the pack keeps hdps's difference images as they are (the engine's grey disc over stars bright in the reference is for the field movies; argus_night_live.pack captures the draw data)
 
 [[hdps.tasks]]
 type = "DataCleanupTask"
@@ -35,21 +43,9 @@ type = "SourceDetectionTask"
 type = "SourceFilterTask"
 
 [[hdps.tasks]]
-type = "ReferenceRetrievalTask"
-
-[[hdps.tasks]]
-type = "LinearWCSSolverTask"
-
-[[hdps.tasks]]
-type = "SourceMatchingTask"
-
-[[hdps.tasks]]
-type = "TPVWCSSolverTask"
-[hdps.tasks.config]
-tpv_terms = 7  # second order: in M3's crowded field the 17-term fit, pulled by mismatched pairs, does not invert across
-# the tiles beyond the window and ReprojectionTask drops them. Test, window offset [0, -7], every 20th exposure of the
-# reference night: frames with tiles 17 terms 5/11 beta, 6/10 rho; 11 terms 9/11, 10/10; 7 terms 10/11, 10/10; median
-# TPV residual 1.16"/0.75" (17), 0.46"/0.21" (11), 0.42"/0.23" (7)
+type = "TrueCalibrationTask"  # the frame's WCS and zero point from the simulation, in place of
+# ReferenceRetrievalTask, LinearWCSSolverTask, SourceMatchingTask and TPVWCSSolverTask (2026-10-26); the window is
+# centred on the core again (it sat 7' south for hdps's linear solver, which locked onto false alignments there)
 
 [[hdps.tasks]]
 type = "LightweightFITSOutputTask"

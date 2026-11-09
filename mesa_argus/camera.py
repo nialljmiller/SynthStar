@@ -11,8 +11,12 @@ header carries what a real frame's does (hdps's AEGIS test frames): UTCSTART, UT
 (hours), TARGDEC, EXPTIME, AEXPTIME, CAMID, CAMMOD, CAMGAIN, CAMOFFST, and the readout window XORIGIN, YORIGIN, XSIZE,
 YSIZE (a window on the sensor: the simulated region). Plus, not in real headers, FILTER (the band; real frames get it
 from the camera's telescope configuration), TELID and SUBARRAY (ArgusSim's telescope number and its subarray: one
-camera, filter and focuser per telescope, none numbered on its own) and TELCONF = TELID (the hardware code of hdps's
-frame key, hdps.core.frame_key; real frames get it from the telescope-configuration registry).
+camera, filter and focuser per telescope), TELCONF = TELID + 1 (the hardware code of hdps's frame key,
+hdps.core.frame_key; real frames get it from the telescope-configuration registry; + 1 because ArgusSim numbers
+telescopes from 0 and hdps's code for a camera with no id is 0), and the devices' asset ids CAMASSET, OTAASSET,
+FLTASSET, FOCASSET, SUBASSET (hdps's ops-DB hardware tables give every device one integer asset id in a single space
+shared by all device types; ArgusSim numbers none of them, so each type gets its own range from the telescope or
+subarray number: ASSET_BASE).
 """
 import numpy as np
 from argus_sim import c as ARGUS
@@ -27,6 +31,9 @@ MODEL = "MESA_ARGUS toy camera"
 # solved WCS, hdps_astrometry/tests/data/frames, has det(PC) > 0), which hdps's linear WCS solver assumes
 # (quad_align parity (1, 1), hdps/astrometry/linear_solver.py).
 READOUT_Y_SIGN = -1
+# The devices' asset ids: base + telescope number (camera, OTA, filter, focuser) or + subarray number, one range per
+# device type in hdps's single asset-id space (hdps_dm ops_db hardware.py); the real ids are asset-tag integers.
+ASSET_BASE = {"CAMASSET": 100000, "OTAASSET": 200000, "FLTASSET": 300000, "FOCASSET": 400000, "SUBASSET": 500000}
 
 
 def specs():
@@ -62,7 +69,10 @@ def write_raw(path, electrons, meta):
     header["FILTER"] = meta["band"]
     header["TELID"] = (int(meta["tel_id"]), "ArgusSim telescope number")
     header["SUBARRAY"] = (int(meta["subarray"]), "ArgusSim subarray number")
-    header["TELCONF"] = (int(meta["tel_id"]), "frame-key hardware code: the telescope number")
+    header["TELCONF"] = (int(meta["tel_id"]) + 1, "frame-key hardware code: the telescope number + 1")
+    for key, base in ASSET_BASE.items():
+        number = int(meta["subarray"]) if key == "SUBASSET" else int(meta["tel_id"])
+        header[key] = (base + number, f"simulated asset id: {base} + the {'subarray' if key == 'SUBASSET' else 'telescope'} number")
     for key, value in meta.get("cards", {}).items():
         header[key] = value
     fits.PrimaryHDU(adu, header=header).writeto(path, overwrite=True)  # uint16: astropy writes BITPIX 16, BZERO 32768

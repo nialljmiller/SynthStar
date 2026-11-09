@@ -834,16 +834,14 @@ def raw_frame_path(folder, row, args):
     return folder / f"{camera.camera_id(int(row['tel_id']))}_{start.datetime:%Y%m%d_%H%M%S}.fits", start, end
 
 
-def write_raw_frame(folder, image, win, row, args, cards=None):
+def write_raw_frame(folder, image, win, row, args, layout, cards=None):
     """The exposure as a raw camera frame (mesa_argus.camera): <folder>/<CAMID>_<UTC start>.fits. The header's
-    pointing is the readout window's centre (the camera's pointing over what it reads out); cards: more header cards
-    (the simulation's calibration, mesa_argus.true_calibration)."""
-    from argus_sim.coverage_exact import Layout
-
+    pointing is the readout window's centre (the camera's pointing over what it reads out); layout: ArgusSim's ring
+    layout the exposures were found with (row's ota is its row); cards: more header cards (the simulation's
+    calibration, mesa_argus.true_calibration)."""
     from mesa_argus import camera, sensor
 
     path, start, end = raw_frame_path(folder, row, args)
-    layout = Layout.from_config()
     ra, dec = sensor.sky_at(win[0] + (win[2] - 1) / 2, win[1] + (win[3] - 1) / 2, row["time"], row["theta_deg"],
                             int(row["ota"]), layout)
     folder.mkdir(parents=True, exist_ok=True)
@@ -1217,6 +1215,12 @@ def parser():
     p.add_argument("--measure-only", action="store_true",
                    help="measure again from the raw frames and hdps's products a run left in --work (a run that stopped "
                         "after hdps): no rendering, no hdps; then the outputs as usual")
+    p.add_argument("--stop-after-render", action="store_true",
+                   help="render the raw frame stack to --work and stop before hdps (the image-maker half of a decoupled "
+                        "run); the fused run (no flag) renders and runs hdps together as before")
+    p.add_argument("--hdps-from-stack", action="store_true",
+                   help="run hdps on the raw frame stack already in --work, then measure as usual (the hdps half of a "
+                        "decoupled run): no rendering")
     p.add_argument("--render-only", action="store_true",
                    help="draw the movies from a finished run's <output>.movie.joblib (output.movie_data): no "
                         "rendering, no hdps; the scene is rebuilt as in the run")
@@ -1310,6 +1314,10 @@ def main(argv=None):
     survey = None  # observing "survey": the exposures ArgusSim's array takes of the field, each in one band
     if (DATA / "exposures.ecsv").exists():
         times, bjd, airmass, alt, az, survey = survey_schedule(B, cfg)
+        if args.observation is not None and not args.render_only:  # here, before the photometry: see 6. below
+            from mesa_argus.survey import check_layout
+
+            check_layout(survey, resolved["argussim"]["packing_strategy"]["layout_file"])
         print(f"survey ({B}): {len(times)} exposures through {len(np.unique(survey['tel_id']))} telescopes in "
               f"{len(np.unique(survey['ratchet']))} ratchets, UT {times[0].iso[11:16]}-{times[-1].iso[11:16]}, "
               f"airmass {airmass.min():.2f}-{airmass.max():.2f}")
@@ -1361,6 +1369,34 @@ def main(argv=None):
         mean_sed = np.mean([models[k].sed(ph) for ph in np.linspace(0, 1, 200, endpoint=False)], axis=0) * FLAM
         ref_rate[k] = {b: np.array([ab.electrons_from_sed(band, models[k].wave, mean_sed, airmass=x).value for x in airmass])
                        for b, band in BANDS.items()}
+    # the reference a candidate is subtracted against: its telescope's coadd of the reference exposures that telescope
+    # kept ([night] reference_ratchets: its best-seeing ratchets). A periodic star is in that coadd as it was at those
+    # exposures, not at its cycle mean; SFFT matches the coadd's photometric scale to the science frame, so the star's
+    # flux there is its mean SED over those exposures at the science exposure's airmass (electrons/s on AIRMASS_GRID,
+    # {star: {telescope: rates}}). Before 2026-10-30 the truth used the cycle mean: off by up to ~20% per telescope.
+    ref_by_tel = {}
+    ref_scene = DATA.parent / "reference" / "scene" / "exposures.ecsv"
+    if survey is not None and ref_scene.exists() and DATA.parent.name != "reference":
+        from astropy.table import Table
+        from astropy.time import Time
+
+        from mesa_argus import night
+
+        ref = Table.read(ref_scene)
+        ref = ref[ref["band"] == B]
+        ref_tel = np.asarray(ref["tel_id"], int)
+        ref_bjd = night.bjd_tdb(Time(list(ref["time"]), scale="utc"), CENTRE.ra.deg, CENTRE.dec.deg, cfg=cfg)
+        for k in follow:
+            if k in transient:
+                continue
+            v = pulsators[int(source[k])]
+            ref_by_tel[k] = {}
+            for tel in np.unique(ref_tel):
+                mean_sed = np.mean([models[k].sed(ph) for ph in phases_at(v, ref_bjd[ref_tel == tel])], axis=0) * FLAM
+                ref_by_tel[k][int(tel)] = np.array([ab.electrons_from_sed(BANDS[B], models[k].wave, mean_sed, airmass=x).value
+                                                    for x in AIRMASS_GRID])
+        print(f"truth: each periodic star's reference flux from its telescope's reference exposures ({len(ref)} in {B}, "
+              f"{len(np.unique(ref_tel))} telescopes)", flush=True)
 
     def rates_at(b, j, reference=False):
         """Electrons/s of every star in exposure j (reference: as the difference reference sees it, no transients)."""
@@ -1384,11 +1420,15 @@ def main(argv=None):
     # runs the whole chain against them, then the measurements from hdps's products (truth labels) and the movies.
     if survey is None:
         raise SystemExit("the engine observes as ArgusSim's survey does: observe.py writes scene/exposures.ecsv")
-    from argus_sim.coverage_exact import Layout
-
     from mesa_argus import hdps_worker, runconfig, sensor
+    from mesa_argus.survey import array_layout
 
     obs = runconfig.resolve(runconfig.load(args.observation))
+    # ArgusSim's ring layout ([argussim.packing_strategy] layout_file): each exposure's ota is a row of the layout
+    # observe.py found the exposures with (exposures.ecsv meta), so the two must be the same (checked in 2. above, with
+    # survey.check_layout). --render-only draws from the movie data alone (the frames' positions saved with it) and
+    # places nothing with the layout, so it is not checked there: finished runs of either layout draw again.
+    layout = array_layout(obs["argussim"]["packing_strategy"]["layout_file"])
     # the field movie's images: the whole readout window (output.movie_window_px; hdps's images of every tile it
     # touches, WindowMosaic) when the movie or its data is made, else the block (block_cutouts: the tile it is in)
     whole = obs["output"]["movie_window_px"] > 0 and (not args.no_render or obs["output"]["movie_data"])
@@ -1399,10 +1439,10 @@ def main(argv=None):
     window_px = int(round(obs["field"]["window"] * MINIPIX_PX * SKY_PX / ARGUS_CONFIG.telescope.plate_scale))
     star_ra, star_dec = block_radec(np.asarray(stars["dx"]), np.asarray(stars["dy"]))
     centre_ra, centre_dec = block_radec(np.zeros(1), np.zeros(1))
-    projector = sensor.Projector(np.r_[centre_ra, star_ra], np.r_[centre_dec, star_dec], times, Layout.from_config())
+    projector = sensor.Projector(np.r_[centre_ra, star_ra], np.r_[centre_dec, star_dec], times, layout)
     east, north = obs["field"]["window_offset"]  # where the readout window's centre lies from the field (arcmin)
     window_ra, window_dec = block_radec(np.array([-60.0 * east]), np.array([60.0 * north]))  # the block's +x is west
-    window_projector = sensor.Projector(window_ra, window_dec, times, Layout.from_config())
+    window_projector = sensor.Projector(window_ra, window_dec, times, layout)
     psfs = sensor.PSFs(cfg, wing=obs["image"])  # the observation's psf_model, with its [image] PSF options
     if psfs.gaussian and obs["image"]["psf_halo"]:
         print("PSF: [image] psf_halo_taper not used (it rounds Zemax's square optics array; the Gaussian has none)",
@@ -1471,16 +1511,18 @@ def main(argv=None):
         return
 
     print(f"{'reference pass' if reference_pass else 'observing'}: {len(frames)} exposures ({B}) as raw frames "
-          f"({window_px} px window) -> {work / 'raw'}" + (" (already there: measuring them again)" if args.measure_only
+          f"({window_px} px window) -> {work / 'raw'}" + (" (already there: measuring them again)"
+                                                           if args.measure_only or args.hdps_from_stack
                                                            else ""), flush=True)
+    if not (args.measure_only or args.hdps_from_stack):  # a fresh stack; hdps ingests every raw/*.fits, so start clean
+        shutil.rmtree(work / "raw", ignore_errors=True)
     records = []
-    layout = Layout.from_config()
     for n, j in enumerate(frames):  # 6. the camera: each exposure rendered and written as a raw frame
         row = survey[j]
         x, y, angle = projector.pixels(j, row["theta_deg"], row["ota"])
         wx, wy, _ = window_projector.pixels(j, row["theta_deg"], row["ota"])
         win = sensor.window(wx[0], wy[0], window_px)
-        if args.measure_only:  # the frame the run wrote
+        if args.measure_only or args.hdps_from_stack:  # the frame already on disk: read it, don't render
             from astropy.io import fits
 
             path = raw_frame_path(work / "raw", row, args)[0]
@@ -1492,14 +1534,14 @@ def main(argv=None):
                                   ARGUS_CONFIG.telescope.fullwell)
             cards = None
             if calibration is not None:
-                w, residual = projector.wcs(j, row["theta_deg"], row["ota"], win[:2])
+                w, residual, residual_rms = projector.wcs(j, row["theta_deg"], row["ota"], win[:2])
                 zp_total = 2.5 * np.log10(np.interp(airmass[j], AIRMASS_GRID, calibration["zp_rate"]) * args.exptime)
                 ai = int(np.abs(psfs.angles(B) - angle[0]).argmin())  # the field's tabulated field angle
                 share = true_calibration.aperture_fraction(psfs, B, seeing[j], ai, calibration["detection"])
-                cards = true_calibration.cards(w, residual, zp_total, share)
+                cards = true_calibration.cards(w, residual, residual_rms, zp_total, share)
                 for k, v in (("zp", zp_total), ("share", share), ("residual", residual)):
                     calibration[k].append(v)
-            path = write_raw_frame(work / "raw", image, win, row, args, cards)
+            path = write_raw_frame(work / "raw", image, win, row, args, layout, cards)
         sx, sy = x[1:] - win[0], y[1:] - win[1]  # every star in the window's pixels (truth)
         bright = (G < 17) & (sx > 20) & (sx < win[2] - 20) & (sy > 20) & (sy < win[3] - 20)  # for the WCS check
         records.append(dict(path=path, window=win, field_xy=(x[0], y[0]), j=j, sx=sx, sy=sy,
@@ -1522,6 +1564,10 @@ def main(argv=None):
             for t in obs["hdps"]["tasks"]:
                 if t["type"] == "TileImageOutputTask":
                     t["config"]["tile_ids"] = mosaic.tiles()
+
+    if args.stop_after_render:  # the image-maker half of a decoupled run: raw stack on disk, stop before hdps
+        print(f"rendered {len(frames)} frames -> {work / 'raw'}; stopping before hdps (--stop-after-render)", flush=True)
+        return
 
     # 7. hdps's worker over the raw frames (mesa_argus.hdps_worker). The reference pass makes hdps's coadds
     # (transients left out); the science pass runs the whole chain against them.
@@ -1571,17 +1617,21 @@ def main(argv=None):
                 table[key] = values
             table["truth_mag"] = [true_mag(B, int(k), j) if k >= 0 else np.nan for k in table["truth_star"]]
             # the change the difference image should show at the star (electrons): its flux now minus its flux in
-            # the reference (a transient: none; a followed variable: its mean over the reference night; any other
-            # star: unchanged). What decides real or bogus for a real/bogus training set (tools/rb_training_set.py).
+            # the reference (a transient: none; a followed variable: as in its telescope's reference coadd, ref_by_tel,
+            # else its cycle mean; any other star: unchanged). What decides real or bogus for a real/bogus training
+            # set (tools/rb_training_set.py).
             now = rates_at(B, j) * args.exptime
             k = table["truth_star"].to_numpy()
             flux_now = np.where(k >= 0, now[np.maximum(k, 0)], np.nan)
             flux_ref = np.where(k >= 0, flux_now, np.nan)
+            tel = int(row["tel_id"])
             for i, kk in enumerate(k):
                 if kk in transient:
                     flux_ref[i] = 0.0
                 elif kk in follow:
-                    flux_ref[i] = float(np.mean(ref_rate[kk][B])) * args.exptime
+                    grid = ref_by_tel.get(kk, {}).get(tel)
+                    flux_ref[i] = (float(np.interp(airmass[j], AIRMASS_GRID, grid)) if grid is not None
+                                   else float(np.mean(ref_rate[kk][B]))) * args.exptime
             table["truth_flux_now"], table["truth_flux_reference"] = flux_now, flux_ref
             table["truth_diff_flux"] = flux_now - flux_ref
             alert_rows.append(table)

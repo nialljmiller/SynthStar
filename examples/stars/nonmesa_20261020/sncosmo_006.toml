@@ -1,0 +1,385 @@
+# Non-MESA coverage templates; not population weights.
+
+[[star]]
+name = "libnm_sncosmo_a122de6bfe0c48"
+generator = "supernova"
+model = "s11-2005lc"
+version = "1.0"
+z = 0.2058662733112358
+M = -16.061441105790436
+host_ebv = 0.17469084244221447
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_5ebcca27c837f2"
+generator = "supernova"
+model = "s11-2005lc"
+version = "1.0"
+z = 0.0016221994471129393
+M = -17.943769509904087
+host_ebv = 0.6422382180579006
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_6fb2c8bb32b84c"
+generator = "supernova"
+model = "s11-2005lc"
+version = "1.0"
+z = 0.012739698952968741
+M = -16.95776368211955
+host_ebv = 0.2755871920846402
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_2f6d4027112cf9"
+generator = "supernova"
+model = "s11-2005lc"
+version = "1.0"
+z = 0.020978290724279185
+M = -17.03540783841163
+host_ebv = 0.4861460410058498
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_56a1f60c81644f"
+generator = "supernova"
+model = "s11-2005lc"
+version = "1.0"
+z = 0.06511993412229919
+M = -16.44334961567074
+host_ebv = 0.5726676248945295
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_957f02c4af285c"
+generator = "supernova"
+model = "s11-2005lc"
+version = "1.0"
+z = 0.004339067703853811
+M = -17.552240899764
+host_ebv = 0.012111278064548968
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_cf9c046b444739"
+generator = "supernova"
+model = "s11-2005lc"
+version = "1.0"
+z = 0.0023512477476164903
+M = -15.546245968900621
+host_ebv = 0.3780758913606405
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_d7f370b6d07a33"
+generator = "supernova"
+model = "s11-2005lc"
+version = "1.0"
+z = 0.13736217336048698
+M = -18.45982724521309
+host_ebv = 0.2605310204438865
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_21475bd8b05d32"
+generator = "supernova"
+model = "s11-2005lc"
+version = "1.0"
+z = 0.09285761514637782
+M = -16.791672367602587
+host_ebv = 0.42500549713149666
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_c4805f89863f9e"
+generator = "supernova"
+model = "s11-2005lc"
+version = "1.0"
+z = 0.0030429698698056836
+M = -17.20330017246306
+host_ebv = 0.2144465634599328
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_49a437e904b7ac"
+generator = "supernova"
+model = "s11-2005lc"
+version = "1.0"
+z = 0.006862456712872542
+M = -16.223107853904366
+host_ebv = 0.5257312599569559
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_a3f5809cbc0514"
+generator = "supernova"
+model = "s11-2005lc"
+version = "1.0"
+z = 0.04706420496422291
+M = -17.783171359449625
+host_ebv = 0.05818380219861865
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_4a0341fa4a34e6"
+generator = "supernova"
+model = "s11-2006fo"
+version = "1.0"
+z = 0.018935701011966406
+M = -15.657264276407659
+host_ebv = 0.46731765521690244
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_b3ab2a3b028fbc"
+generator = "supernova"
+model = "s11-2006fo"
+version = "1.0"
+z = 0.0051142102675367515
+M = -17.840292473323643
+host_ebv = 0.03514487473294139
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_25f7383a0235e0"
+generator = "supernova"
+model = "s11-2006fo"
+version = "1.0"
+z = 0.001029524138498212
+M = -16.6916925041005
+host_ebv = 0.6576510420069098
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_e609baa966bb80"
+generator = "supernova"
+model = "s11-2006fo"
+version = "1.0"
+z = 0.09511813442255734
+M = -17.555904992856085
+host_ebv = 0.23719548564404247
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_552320c859c89b"
+generator = "supernova"
+model = "s11-2006fo"
+version = "1.0"
+z = 0.2356650408907091
+M = -16.515573491342366
+host_ebv = 0.16492621172219513
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_f51dd467d7a0fe"
+generator = "supernova"
+model = "s11-2006fo"
+version = "1.0"
+z = 0.003488722022665045
+M = -17.333552195690572
+host_ebv = 0.42225919906049963
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_8e80c2383c53c2"
+generator = "supernova"
+model = "s11-2006fo"
+version = "1.0"
+z = 0.012233249999147528
+M = -16.231786110438406
+host_ebv = 0.2794661193154752
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_130b273b172907"
+generator = "supernova"
+model = "s11-2006fo"
+version = "1.0"
+z = 0.06796097285832887
+M = -18.367298784665763
+host_ebv = 0.5251032448373735
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_af32f3f8c5f3da"
+generator = "supernova"
+model = "s11-2006fo"
+version = "1.0"
+z = 0.04091398958963466
+M = -16.962079482153058
+host_ebv = 0.3211165335960686
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_1b5b43cc1b4940"
+generator = "supernova"
+model = "s11-2006fo"
+version = "1.0"
+z = 0.011011043135521547
+M = -17.634121529757977
+host_ebv = 0.5778300140984356
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_cce8a7f0f46bd5"
+generator = "supernova"
+model = "s11-2006fo"
+version = "1.0"
+z = 0.002222982838460128
+M = -15.735475605353713
+host_ebv = 0.12863773591816424
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_c82d19e9a3034c"
+generator = "supernova"
+model = "s11-2006fo"
+version = "1.0"
+z = 0.20493153784722262
+M = -18.11067460104823
+host_ebv = 0.375193440541625
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_66af550b1e6fe2"
+generator = "supernova"
+model = "s11-2006jl"
+version = "1.0"
+z = 0.0010841211393245785
+M = -18.491311288438737
+host_ebv = 0.32557884380221364
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_709bed1f68a3d7"
+generator = "supernova"
+model = "s11-2006jl"
+version = "1.0"
+z = 0.032125205414622965
+M = -16.44439224898815
+host_ebv = 0.42646702025085687
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_cd1dac71dbd1be"
+generator = "supernova"
+model = "s11-2006jl"
+version = "1.0"
+z = 0.16673450978474091
+M = -17.160815428942442
+host_ebv = 0.051287330128252505
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_b46248c0901c01"
+generator = "supernova"
+model = "s11-2006jl"
+version = "1.0"
+z = 0.01646629384088936
+M = -15.903458598069847
+host_ebv = 0.6949502401053905
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_39b008eef54be1"
+generator = "supernova"
+model = "s11-2006jl"
+version = "1.0"
+z = 0.004827628814403749
+M = -17.585352566093206
+host_ebv = 0.4852945900522172
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_7f30346a6dc5c7"
+generator = "supernova"
+model = "s11-2006jl"
+version = "1.0"
+z = 0.1428279955354157
+M = -15.853375273756683
+host_ebv = 0.2559655644930899
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_2078db069490e1"
+generator = "supernova"
+model = "s11-2006jl"
+version = "1.0"
+z = 0.03586191863357066
+M = -17.785526922903955
+host_ebv = 0.581509939674288
+band = "bessellb"
+magsys = "ab"
+params = {}
+
+[[star]]
+name = "libnm_sncosmo_80a398ec07013f"
+generator = "supernova"
+model = "s11-2006jl"
+version = "1.0"
+z = 0.003537274871273745
+M = -16.775729060173035
+host_ebv = 0.1539374149404466
+band = "bessellb"
+magsys = "ab"
+params = {}
