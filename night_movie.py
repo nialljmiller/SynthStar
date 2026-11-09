@@ -63,76 +63,22 @@ iers.conf.auto_download = False
 iers.conf.auto_max_age = None  # the bundled Earth-orientation table at any age: sub-second UT1, sub-arcsec polar motion
 _REPO = Path(__file__).resolve().parent  # data/, runs/, outputs/ are in the repo, wherever this is run from
 
-# hand-made fields (before observe.py): Gaia data in data/<field>/, centre, HDPS tile and block centre, default night,
-# site override
-FIELDS = {
-    "m3": dict(name="M3", centre=(205.5484, 28.3773), tile=345967, block=(34, 32), date="2027-05-05", site=None),
-    # M15 for a comparison with ADDEM at Sierra Remote Observatories (approximate SRO coordinates; Argus instrument)
-    "m15": dict(name="M15", centre=(322.49304, 12.16700), tile=298720, block=(26, 36), date="2026-10-05",
-                site=dict(latitude=37.07, longitude=-119.41, altitude=1400.0),
-                # an RRc whose first overtone RSP finds stable even at 0.70 x the cluster L: not followed
-                exclude={1745948328028784640}),
-    # one RRab (Gaia DR3 308108245007332224, P 0.382 d, G 13.9) and a few neighbours, b = -34 deg
-    "rr308108": dict(name="field RRab", centre=(17.588538, 28.550090), tile=345631, block=(35, 54), date="2026-10-06",
-                     site=dict(latitude=37.07, longitude=-119.41, altitude=1400.0)),
-    # RRab Gaia DR3 416445908838640384 (P 0.404 d, G 14.4) with 21 stars G < 20 in the block, b = -10 deg
-    "rr416445": dict(name="field RRab", centre=(8.841137, 52.998087), tile=417610, block=(12, 34), date="2026-10-06",
-                     site=dict(latitude=37.07, longitude=-119.41, altitude=1400.0)),
-}
-for _f in sorted((_REPO / "data").glob("*/field.json")):  # any other data/<field>/field.json (older argus_field.py fields)
-    _c = json.loads(_f.read_text())
-    FIELDS[_f.parent.name] = dict(name=_c["name"], centre=tuple(_c["centre"]), tile=_c["tile"], block=tuple(_c["block"]),
-                                  date=_c["date"], site=_c.get("site"), followed_only=True, block_n=_c.get("block_n", 3),
-                                  synthetic=_c.get("synthetic", False))
-
-# the field being observed (use_field sets these)
-FIELD = "m3"
-DATA = Path("data/m3")
-CENTRE = SkyCoord(205.5484 * u.deg, 28.3773 * u.deg)
-TILE, BLOCK = 345967, (34, 32)
-
-MINIPIX_PX, SKY_PX = 32, 900.0 / 1024.0  # HDPS minipix (pixels) and tessellation pixel (arcsec)
-BLOCK_N = 3  # the block shown: BLOCK_N x BLOCK_N minipixes centred on the block minipix (set_block)
-HALF = BLOCK_N / 2 * MINIPIX_PX * SKY_PX  # its half-width (arcsec)
-MARGIN = 15.0  # arcsec: stars this far outside the simulated area still spill light in
-AREA_HALF = 240.0  # half-width (arcsec) of the simulated area (--area): the kernel and zero point use all of it
-AIRMASS_GRID = np.round(np.arange(1.0, 2.61, 0.2), 2)  # constant stars' rates are tabulated on it
-PSF_PHASES = 8  # sub-pixel phases per axis in the PSF lookup
+from mesa_argus.engine import state  # noqa: E402  the shared mutable field/block state (keystone of the stage split)
+from mesa_argus.engine.state import (MINIPIX_PX, SKY_PX, MARGIN, AIRMASS_GRID, PSF_PHASES, FIELDS,  # noqa: E402
+                                     use_field, set_block, block_label)
 
 
-def use_field(field, scene=None):
-    """Point the module (and mesa_argus.rsp) at a scene folder (observe.py) or a hand-made field's data/<field>/."""
-    global FIELD, DATA, CENTRE, TILE, BLOCK
-    from mesa_argus import rsp
-
-    if scene is not None:
-        scene = Path(scene).resolve()
-        c = json.loads((scene / "field.json").read_text())
-        FIELDS[field] = dict(name=c["name"], centre=tuple(c["centre"]), tile=c["tile"], block=tuple(c["block"]),
-                             date=c["date"], site=c.get("site"), followed_only=True, block_n=c.get("block_n", 3),
-                             synthetic=c.get("synthetic", False))
-    f = FIELDS[field]
-    FIELD, DATA = field, (scene if scene is not None else _REPO / "data" / field)
-    CENTRE = SkyCoord(f["centre"][0] * u.deg, f["centre"][1] * u.deg)
-    TILE, BLOCK = f["tile"], f["block"]
-    if scene is None:
-        rsp.use(field)
-
-
-def set_block(n):
-    """Show an n x n block of minipixes (n odd)."""
-    global BLOCK_N, HALF
-    BLOCK_N, HALF = n, n / 2 * MINIPIX_PX * SKY_PX
-
-
-def block_label():
-    return f"{BLOCK_N} × {BLOCK_N} minipixes ({2 * HALF:.0f}″)"
+def __getattr__(name):  # forward the shared mutable state (night_movie.HALF, .TILE, .FIELD, ...) to engine.state, live
+    try:
+        return getattr(state, name)
+    except AttributeError:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
 
 
 # ---------------------------------------------------------------- the stars
 def block_offsets(ra, dec):
     """Offsets (arcsec) from the block centre in the HDPS tile's tangent-plane pixel frame."""
-    tile_ra, tile_dec = (float(v[0]) for v in sh.tile_center(np.array([TILE])))
+    tile_ra, tile_dec = (float(v[0]) for v in sh.tile_center(np.array([state.TILE])))
     cd, sd = np.cos(np.radians(dec)), np.sin(np.radians(dec))
     ctd, std = np.cos(np.radians(tile_dec)), np.sin(np.radians(tile_dec))
     dra = np.radians(ra - tile_ra)
@@ -141,7 +87,7 @@ def block_offsets(ra, dec):
     eta = np.degrees((ctd * sd - std * cd * np.cos(dra)) / den)
     crpix = sh.SEGMENT_PIXEL_SIZE / 2.0 + 0.5
     px, py = -xi / sh.PIXEL_SCALE_DEG + crpix - 0.5, eta / sh.PIXEL_SCALE_DEG + crpix - 0.5
-    return (px - (BLOCK[0] + 0.5) * MINIPIX_PX) * SKY_PX, (py - (BLOCK[1] + 0.5) * MINIPIX_PX) * SKY_PX
+    return (px - (state.BLOCK[0] + 0.5) * MINIPIX_PX) * SKY_PX, (py - (state.BLOCK[1] + 0.5) * MINIPIX_PX) * SKY_PX
 
 
 def column(t, name):
@@ -152,9 +98,9 @@ def column(t, name):
 
 def block_centre_label():
     """The block centre as display text, e.g. 13ʰ42ᵐ11.5ˢ +28°22′30″."""
-    tile_ra, tile_dec = (float(v[0]) for v in sh.tile_center(np.array([TILE])))
+    tile_ra, tile_dec = (float(v[0]) for v in sh.tile_center(np.array([state.TILE])))
     crpix = sh.SEGMENT_PIXEL_SIZE / 2.0 + 0.5
-    px, py = (BLOCK[0] + 0.5) * MINIPIX_PX, (BLOCK[1] + 0.5) * MINIPIX_PX
+    px, py = (state.BLOCK[0] + 0.5) * MINIPIX_PX, (state.BLOCK[1] + 0.5) * MINIPIX_PX
     xi, eta = -(px - crpix + 0.5) * sh.PIXEL_SCALE_DEG, (py - crpix + 0.5) * sh.PIXEL_SCALE_DEG
     centre = SkyCoord(tile_ra * u.deg, tile_dec * u.deg).spherical_offsets_by(xi * u.deg, eta * u.deg)
     h, m, s = centre.ra.hms
@@ -164,19 +110,19 @@ def block_centre_label():
 
 def star_catalogue():
     """The field's star list: Gaia DR3, or a synthetic field's (a real field's stars at random positions)."""
-    return DATA / ("synthetic_stars.ecsv" if FIELDS[FIELD].get("synthetic") else "gaia_dr3_core.ecsv")
+    return state.DATA / ("synthetic_stars.ecsv" if FIELDS[state.FIELD].get("synthetic") else "gaia_dr3_core.ecsv")
 
 
 def load_followed():
     """A hand-made field's followed stars (data/<field>/followed.json); {} for a scene."""
-    path = DATA / "followed.json"
+    path = state.DATA / "followed.json"
     return json.loads(path.read_text()) if path.exists() else {}
 
 
 def load_placed():
     """The stars placed by observe.py (sources.json), in order: real Gaia stars (positive ids) and placed stars and
     transients (-1, -2, ...), each with its SED file, position, timing and dust."""
-    path = DATA / "sources.json"
+    path = state.DATA / "sources.json"
     return json.loads(path.read_text()) if path.exists() else []
 
 
@@ -206,15 +152,15 @@ def load_scene():
     if placed:
         dx[-len(placed):] = [v["dx"] for v in placed]
         dy[-len(placed):] = [v["dy"] for v in placed]
-    near = (np.abs(dx) <= AREA_HALF + MARGIN) & (np.abs(dy) <= AREA_HALF + MARGIN)
+    near = (np.abs(dx) <= state.AREA_HALF + MARGIN) & (np.abs(dy) <= state.AREA_HALF + MARGIN)
     has_light = np.isfinite(column(stars, "Gmag")) | (np.asarray(stars["Source"]).astype(np.int64) < 0)
     stars = stars[near & has_light]
     stars["dx"], stars["dy"] = dx[near & has_light], dy[near & has_light]
-    stars["in_block"] = (np.abs(stars["dx"]) <= HALF) & (np.abs(stars["dy"]) <= HALF)
-    if FIELDS[FIELD].get("synthetic"):
+    stars["in_block"] = (np.abs(stars["dx"]) <= state.HALF) & (np.abs(stars["dy"]) <= state.HALF)
+    if FIELDS[state.FIELD].get("synthetic"):
         stars["class"] = [""] * len(stars)
         return stars
-    classifier = Table.read(DATA / "gaia_classifier.ecsv")
+    classifier = Table.read(state.DATA / "gaia_classifier.ecsv")
     gaia_class = dict(zip(np.asarray(classifier["Source"]).astype(np.int64), np.asarray(classifier["Class"])))
     stars["class"] = [str(gaia_class.get(int(s), "")) for s in np.asarray(stars["Source"]).astype(np.int64)]
     return stars
@@ -225,9 +171,9 @@ def load_pulsators():
     ephemerides observe.py adds (HADS, binaries), and the placed stars. Used to phase the models, never as light curves."""
     out = {}
     for name, family in (("gaia_rrlyrae.ecsv", "RR"), ("gaia_cepheid.ecsv", "CEP")):
-        if not (DATA / name).exists():
+        if not (state.DATA / name).exists():
             continue
-        t = Table.read(DATA / name)
+        t = Table.read(state.DATA / name)
         for r in t:
             pf = float(r["PF"]) if np.isfinite(float(r["PF"])) and float(r["PF"]) > 0 else np.nan
             p1 = float(r["P1O"]) if "P1O" in t.colnames and np.isfinite(float(r["P1O"])) and float(r["P1O"]) > 0 else np.nan
@@ -252,8 +198,8 @@ def load_pulsators():
             else:
                 mean = {"G": float(r["Gmagavg"])}
             out[int(r["Source"])] = dict(period=period, epoch=float(r["EpochG"]) + 2455197.5, kind=kind, amp=amp, mean=mean)
-    if (DATA / "extra_pulsators.json").exists():  # ephemerides from other catalogues (HADS from ASAS-SN; binaries)
-        for source, v in json.loads((DATA / "extra_pulsators.json").read_text()).items():
+    if (state.DATA / "extra_pulsators.json").exists():  # ephemerides from other catalogues (HADS from ASAS-SN; binaries)
+        for source, v in json.loads((state.DATA / "extra_pulsators.json").read_text()).items():
             out[int(source)] = dict(period=v["period"], epoch=v["epoch_bjd"], kind=v["kind"], amp={"G": v["amp"]},
                                     mean={"G": v["G"]})
     for v in load_placed():  # placed stars: -1, -2, ...; a transient's epoch is its t0
@@ -300,12 +246,12 @@ def choose_followed(stars, pulsators, n):
     ones in order). A hand-made field: two RRc, then the largest-amplitude RRab, up to n."""
     source = np.asarray(stars["Source"]).astype(np.int64)
     in_block = np.asarray(stars["in_block"])
-    if FIELDS[FIELD].get("followed_only"):
+    if FIELDS[state.FIELD].get("followed_only"):
         chosen = {v["source"] for v in load_followed().values()} | {v["source"] for v in load_placed() if v["source"] > 0}
         real = [k for k in range(len(stars)) if int(source[k]) in chosen]
         placed = sorted((k for k in range(len(stars)) if int(source[k]) < 0), key=lambda k: -int(source[k]))
         return sorted(real, key=lambda k: -pulsators[int(source[k])]["amp"]["G"]) + placed
-    exclude = FIELDS[FIELD].get("exclude", set())
+    exclude = FIELDS[state.FIELD].get("exclude", set())
     candidates = [k for k in range(len(stars)) if in_block[k] and int(source[k]) in pulsators and int(source[k]) not in exclude]
     by_amplitude = sorted(candidates, key=lambda k: -pulsators[int(source[k])]["amp"]["G"])
     kind = {k: pulsators[int(source[k])]["kind"] for k in candidates}
@@ -314,81 +260,7 @@ def choose_followed(stars, pulsators, n):
     return sorted(follow, key=lambda k: -pulsators[int(source[k])]["amp"]["G"])
 
 
-class RSPStar:
-    """One cycle of a periodic model (MESA RSP limit cycle, or a PHOEBE orbit), phased so phase 0 is maximum light in
-    rho (binaries: the primary eclipse). The file's SEDs are at 10 pc; they are seen at `distance` (pc; the file's
-    distance modulus if not given), through E(B-V) `ebv` (the observation's; the file's own if not given)."""
-
-    def __init__(self, path, ab, ebv=None, distance=None):
-        with h5py.File(path) as f:
-            self.attrs = dict(f.attrs)
-            wave, flux_10pc, t = f["wavelength"][:], f["flux"][:], f["time_days"][:]
-        self.wave = wave * u.AA
-        distance = 10 ** (float(self.attrs["distance_modulus"]) / 5 + 1) if distance is None else distance
-        ebv = float(self.attrs["ebv"]) if ebv is None else ebv
-        seen = dust.redden(wave, flux_10pc * (10.0 / distance) ** 2, ebv)
-        rho = np.array([float(ab.mag_from_sed("rho", self.wave, f * FLAM)) for f in seen])
-        # one full cycle ending at the last maximum, with the model's own period (RRab have a bump, so local maxima
-        # alone would mislead)
-        self.period = float(self.attrs["nonlinear_period"])
-        if t[-1] - t[0] < 2 * self.period - 1e-9:  # stored as exactly one cycle (a PHOEBE orbit): unroll it to two
-            one = t < t[0] + self.period - 1e-9
-            t = np.r_[t[one], t[one] + self.period]
-            seen, rho = np.r_[seen[one], seen[one]], np.r_[rho[one], rho[one]]
-        last = t >= t[-1] - self.period
-        if self.attrs.get("kind") == "EB":  # phase 0 = the primary eclipse = the file's start (two equal maxima)
-            i_zero = int(np.nonzero(last)[0][0])
-            cycle = last
-        else:
-            i_zero = int(np.nonzero(last)[0][np.argmin(rho[last])])
-            cycle = (t > t[i_zero] - self.period) & (t <= t[i_zero])
-        phase = ((t[cycle] - t[i_zero]) / self.period) % 1.0
-        order = np.argsort(phase)
-        self.phase = phase[order]
-        self.flux = seen[cycle][order]
-        self.rho_cycle = rho[cycle][order]
-
-    def sed(self, phase):
-        """f_lambda at Argus at this phase: linear between the two stored steps around it (wrapping the cycle)."""
-        phase = phase % 1.0
-        n = len(self.phase)
-        i = int(np.searchsorted(self.phase, phase))
-        if i == 0:
-            a, b, pa, pb = n - 1, 0, self.phase[-1] - 1.0, self.phase[0]
-        elif i == n:
-            a, b, pa, pb = n - 1, 0, self.phase[-1], self.phase[0] + 1.0
-        else:
-            a, b, pa, pb = i - 1, i, self.phase[i - 1], self.phase[i]
-        w = 0.0 if pb == pa else (phase - pa) / (pb - pa)
-        return (1 - w) * self.flux[a] + w * self.flux[b]
-
-
-class TransientSource:
-    """A transient: observer-frame SEDs against days since t0, through E(B-V) `ebv` (the observation's t0 and dust;
-    the file's own if not given). No light before the model's first step; after its last step is an error."""
-
-    def __init__(self, path, t0=None, ebv=None):
-        with h5py.File(path) as f:
-            self.attrs = dict(f.attrs)
-            wave, flux, self.t = f["wavelength"][:], f["flux"][:], f["time_days"][:]
-        self.wave = wave * u.AA
-        self.flux = dust.redden(wave, flux, float(self.attrs["ebv"] if ebv is None else ebv))
-        self.t0 = float(self.attrs["t0_bjd"] if t0 is None else t0)
-
-    def sed_at(self, bjd):
-        """f_lambda at Argus at BJD bjd: linear between the two stored steps around it."""
-        d = bjd - self.t0
-        if d > self.t[-1]:
-            raise ValueError(f"{self.attrs['model']}: {d:.2f} d after t0 is past the model's last step ({self.t[-1]:.2f} d)")
-        if d < self.t[0]:
-            return np.zeros(self.flux.shape[1])
-        i = int(np.clip(np.searchsorted(self.t, d), 1, len(self.t) - 1))
-        w = (d - self.t[i - 1]) / (self.t[i] - self.t[i - 1])
-        return (1 - w) * self.flux[i - 1] + w * self.flux[i]
-
-    def sed_exposure(self, bjd, exptime, n=61):
-        """Mean f_lambda over an exposure centred on bjd (a fast transient changes within one exposure)."""
-        return np.mean([self.sed_at(b) for b in bjd + np.linspace(-0.5, 0.5, n) * exptime / 86400], axis=0)
+from mesa_argus.engine.models import RSPStar, TransientSource  # noqa: E402  (extracted to mesa_argus/engine/models.py)
 
 
 # ---------------------------------------------------------------- the night
@@ -397,9 +269,9 @@ def night_schedule(date, max_airmass, cfg, start=None, end=None):
     window: mid-exposure UTC times, BJD_TDB, airmass, altitude, azimuth."""
     from mesa_argus import night
 
-    times, airmass, alt, az = night.exposures(CENTRE.ra.deg, CENTRE.dec.deg, date, start=start, end=end,
+    times, airmass, alt, az = night.exposures(state.CENTRE.ra.deg, state.CENTRE.dec.deg, date, start=start, end=end,
                                               max_airmass=max_airmass, cfg=cfg)
-    return times, night.bjd_tdb(times, CENTRE.ra.deg, CENTRE.dec.deg, cfg=cfg), airmass, alt, az
+    return times, night.bjd_tdb(times, state.CENTRE.ra.deg, state.CENTRE.dec.deg, cfg=cfg), airmass, alt, az
 
 
 def survey_schedule(band, cfg):
@@ -410,13 +282,13 @@ def survey_schedule(band, cfg):
 
     from mesa_argus import night
 
-    rows = Table.read(DATA / "exposures.ecsv")
+    rows = Table.read(state.DATA / "exposures.ecsv")
     rows = rows[rows["band"] == band]
     if len(rows) == 0:
         raise SystemExit(f"the survey takes no {band} exposures of this field in the window")
     times = Time(list(rows["time"]), scale="utc")
-    airmass, alt, az = night.sky_position(times, CENTRE.ra.deg, CENTRE.dec.deg, night.location(cfg))
-    return times, night.bjd_tdb(times, CENTRE.ra.deg, CENTRE.dec.deg, cfg=cfg), airmass, alt, az, rows
+    airmass, alt, az = night.sky_position(times, state.CENTRE.ra.deg, state.CENTRE.dec.deg, night.location(cfg))
+    return times, night.bjd_tdb(times, state.CENTRE.ra.deg, state.CENTRE.dec.deg, cfg=cfg), airmass, alt, az, rows
 
 
 def phases_at(var, bjd):
@@ -450,11 +322,11 @@ class Scene:
 
     def __init__(self, stars, args, cfg, ab, seeings, field_angles=None):
         self.native_plate = cfg.telescope.plate_scale
-        self.native_n = int(np.ceil(2 * AREA_HALF / self.native_plate)) + 30
+        self.native_n = int(np.ceil(2 * state.AREA_HALF / self.native_plate)) + 30
         self.native_n += self.native_n % 2
         self.native_centre = self.native_n / 2.0
         self.plate = SKY_PX
-        self.n = int(np.ceil(2 * AREA_HALF / self.plate))
+        self.n = int(np.ceil(2 * state.AREA_HALF / self.plate))
         self.n += self.n % 2
         self.centre = self.n / 2.0
         # tile pixels on the hdps tile grid (astropy convention, pixel centres at integers): ArgusSim's tile code puts
@@ -590,8 +462,8 @@ def constant_star_rates(stars, pulsators, ab, workers=1):
     colour = column(stars, "BP-RP")
     # no (or a blended) BP-RP, common in crowded cores: the median colour, at the same G, of stars > 2.5' from the centre
     everyone = Table.read(star_catalogue())
-    r_arcmin = 60 * np.hypot((column(everyone, "RA_ICRS") - CENTRE.ra.deg) * np.cos(CENTRE.dec.rad),
-                             column(everyone, "DE_ICRS") - CENTRE.dec.deg)
+    r_arcmin = 60 * np.hypot((column(everyone, "RA_ICRS") - state.CENTRE.ra.deg) * np.cos(state.CENTRE.dec.rad),
+                             column(everyone, "DE_ICRS") - state.CENTRE.dec.deg)
     g_all, c_all = column(everyone, "Gmag"), column(everyone, "BP-RP")
     good = (r_arcmin > 2.5) & np.isfinite(g_all) & np.isfinite(c_all)
     bins = np.arange(11.5, 20.51, 0.5)
@@ -636,8 +508,7 @@ def constant_star_rates(stars, pulsators, ab, workers=1):
     for t in np.unique(template):
         e = ebv[template == t]
         grid[t] = np.arange(np.floor(e.min() / step), np.ceil(e.max() / step) + 0.5) * step  # covers every star's E(B-V)
-    global _PHOTOMETRY
-    _PHOTOMETRY = (templates, ab, grid)
+    state._PHOTOMETRY = (templates, ab, grid)
     if workers > 1:  # forked: the workers share the templates and ArgusSim's throughputs with this process
         import multiprocessing
         from concurrent.futures import ProcessPoolExecutor
@@ -646,7 +517,7 @@ def constant_star_rates(stars, pulsators, ab, workers=1):
             light = dict(zip(grid, pool.map(template_photometry, grid, chunksize=4)))
     else:
         light = {t: template_photometry(t) for t in grid}
-    _PHOTOMETRY = None
+    state._PHOTOMETRY = None
     for t, nodes in grid.items():
         these = template == t
         e = ebv[these]
@@ -662,13 +533,12 @@ def constant_star_rates(stars, pulsators, ab, workers=1):
     return rate, mag, templates, colour
 
 
-_PHOTOMETRY = None  # (templates, ab, E(B-V) nodes per template) while constant_star_rates runs
 
 
 def template_photometry(t):
     """Template t through ArgusSim at each of its E(B-V) nodes: per band, the magnitude above the atmosphere and the
     electrons/s on AIRMASS_GRID. Each node's reddened SED is made once, for both bands and every airmass."""
-    templates, ab, grid = _PHOTOMETRY
+    templates, ab, grid = state._PHOTOMETRY
     seds = [dust.redden(templates.wave.value, templates.flux[t], x) * FLAM for x in grid[t]]
     return {b: (np.array([float(ab.mag_from_sed(band, templates.wave, f)) for f in seds]),
                 np.array([[ab.electrons_from_sed(band, templates.wave, f, airmass=a).value for a in AIRMASS_GRID]
@@ -742,10 +612,10 @@ def conditions(times, airmass, alt, az, args, stars, cfg, ab, survey=None):
 def block_radec(dx, dy):
     """RA, Dec (deg) of offsets dx, dy (arcsec) from the block centre in the tile's tangent plane: the inverse of
     block_offsets."""
-    tile_ra, tile_dec = (float(v[0]) for v in sh.tile_center(np.array([TILE])))
+    tile_ra, tile_dec = (float(v[0]) for v in sh.tile_center(np.array([state.TILE])))
     crpix = sh.SEGMENT_PIXEL_SIZE / 2.0 + 0.5
-    px = (BLOCK[0] + 0.5) * MINIPIX_PX + np.asarray(dx, float) / SKY_PX
-    py = (BLOCK[1] + 0.5) * MINIPIX_PX + np.asarray(dy, float) / SKY_PX
+    px = (state.BLOCK[0] + 0.5) * MINIPIX_PX + np.asarray(dx, float) / SKY_PX
+    py = (state.BLOCK[1] + 0.5) * MINIPIX_PX + np.asarray(dy, float) / SKY_PX
     xi = np.radians(-(px - crpix + 0.5) * sh.PIXEL_SCALE_DEG)
     eta = np.radians((py - crpix + 0.5) * sh.PIXEL_SCALE_DEG)
     d0 = np.radians(tile_dec)
@@ -896,8 +766,8 @@ def measure_frame(work, stem, band, obs, star_x, star_y, expected_flux):
 def block_cut():
     """The block cut-out's slice of hdps's tile grid, and (cx, cy, x0, y0): the block centre and the cut's corner in
     tile pixels (block_cutouts, ReferenceMask)."""
-    cx, cy = (BLOCK[0] + 0.5) * MINIPIX_PX - 0.5, (BLOCK[1] + 0.5) * MINIPIX_PX - 0.5  # hdps tile grid
-    h = int(np.ceil((HALF + 2) / SKY_PX)) + 1
+    cx, cy = (state.BLOCK[0] + 0.5) * MINIPIX_PX - 0.5, (state.BLOCK[1] + 0.5) * MINIPIX_PX - 0.5  # hdps tile grid
+    h = int(np.ceil((state.HALF + 2) / SKY_PX)) + 1
     x0, y0 = int(round(cx)) - h, int(round(cy)) - h
     return (slice(max(y0, 0), y0 + 2 * h + 1), slice(max(x0, 0), x0 + 2 * h + 1)), (cx, cy, x0, y0)
 
@@ -908,8 +778,8 @@ def block_cutouts(work, stem):
     difference image of that tile."""
     from astropy.io import fits
 
-    sci_path = work / f"epoch_{stem}_tile_{TILE:06d}_sci.fits"
-    diff_path = work / f"epoch_{stem}_tile_{TILE:06d}_diff.fits"
+    sci_path = work / f"epoch_{stem}_tile_{state.TILE:06d}_sci.fits"
+    diff_path = work / f"epoch_{stem}_tile_{state.TILE:06d}_diff.fits"
     if not (sci_path.exists() and diff_path.exists()):
         return None
     sci, diff = fits.getdata(sci_path, "SCI"), fits.getdata(diff_path, "DIFF")
@@ -957,7 +827,7 @@ class WindowMosaic:
         self.view = (cx - half, cx + half, cy - half, cy + half)
         x0, x1, y0, y1 = max(x0, self.view[0]), min(x1, self.view[1]), max(y0, self.view[2]), min(y1, self.view[3])
         # u, v: the main tile's 0-based pixel + 0.5 (pixel edges at integers, minipix edges at multiples of 32)
-        self.cu, self.cv = (BLOCK[0] + 0.5) * MINIPIX_PX, (BLOCK[1] + 0.5) * MINIPIX_PX  # the block centre
+        self.cu, self.cv = (state.BLOCK[0] + 0.5) * MINIPIX_PX, (state.BLOCK[1] + 0.5) * MINIPIX_PX  # the block centre
         u, v = np.array([x0, x1]) / SKY_PX + self.cu, np.array([y0, y1]) / SKY_PX + self.cv
         span = max(np.ptp(u), np.ptp(v))
         self.bin = 1
@@ -1073,7 +943,7 @@ class WindowMosaic:
         t = np.linspace(0.0, 1.0, 400)
         ra, dec = block_radec(np.r_[x0 + t * (x1 - x0), np.full(400, x1), x1 - t * (x1 - x0), np.full(400, x0)],
                               np.r_[np.full(400, y0), y0 + t * (y1 - y0), np.full(400, y1), y1 - t * (y1 - y0)])
-        tile_ra = float(sh.tile_center(np.array([TILE]))[0][0])
+        tile_ra = float(sh.tile_center(np.array([state.TILE]))[0][0])
         rel = (ra - tile_ra + 180.0) % 360.0 - 180.0  # RA about the main tile's centre (the grid may cross RA 0)
         ra_lo, ra_hi, dec_lo, dec_hi = tile_ra + rel.min(), tile_ra + rel.max(), dec.min(), dec.max()
         seams = []
@@ -1149,7 +1019,7 @@ class ReferenceMask:
 
     def block(self, camera, cutout):
         """The block cut-out with its masked difference pixels nan (a copy), or as it was with no coadd."""
-        masked = self.tile(camera, TILE)[0]
+        masked = self.tile(camera, state.TILE)[0]
         if cutout is None or masked is None:
             return cutout
         m = masked[block_cut()[0]]
@@ -1262,7 +1132,6 @@ def main(argv=None):
     os.chdir(_REPO)
     use_field(args.field, args.scene)
     set_block(args.block or FIELDS[args.field].get("block_n", 3))
-    global AREA_HALF
     if args.observation is not None:  # the stars kept: out to a readout window's far corner, wherever it falls
         from mesa_argus import runconfig
 
@@ -1270,9 +1139,9 @@ def main(argv=None):
         window = resolved["field"]["window"]
         side = (window or ARGUS_CONFIG.telescope.n_pixels_x) * MINIPIX_PX * SKY_PX if window else \
             ARGUS_CONFIG.telescope.n_pixels_x * ARGUS_CONFIG.telescope.plate_scale
-        AREA_HALF = max(side * np.sqrt(2), HALF + MARGIN)
+        state.AREA_HALF = max(side * np.sqrt(2), state.HALF + MARGIN)
     else:
-        AREA_HALF = max(30.0 * args.area, HALF + MARGIN)
+        state.AREA_HALF = max(30.0 * args.area, state.HALF + MARGIN)
     args.date = args.date or FIELDS[args.field]["date"]
     B = args.band  # the band shown in the images, light curves and CMD
     cfg = copy.deepcopy(ARGUS_CONFIG)
@@ -1312,7 +1181,7 @@ def main(argv=None):
     if args.exptime > cfg.survey.base_cadence_s:
         raise SystemExit(f"--exptime {args.exptime} s is longer than ArgusSim's cadence ({cfg.survey.base_cadence_s} s)")
     survey = None  # observing "survey": the exposures ArgusSim's array takes of the field, each in one band
-    if (DATA / "exposures.ecsv").exists():
+    if (state.DATA / "exposures.ecsv").exists():
         times, bjd, airmass, alt, az, survey = survey_schedule(B, cfg)
         if args.observation is not None and not args.render_only:  # here, before the photometry: see 6. below
             from mesa_argus.survey import check_layout
@@ -1375,8 +1244,8 @@ def main(argv=None):
     # flux there is its mean SED over those exposures at the science exposure's airmass (electrons/s on AIRMASS_GRID,
     # {star: {telescope: rates}}). Before 2026-10-30 the truth used the cycle mean: off by up to ~20% per telescope.
     ref_by_tel = {}
-    ref_scene = DATA.parent / "reference" / "scene" / "exposures.ecsv"
-    if survey is not None and ref_scene.exists() and DATA.parent.name != "reference":
+    ref_scene = state.DATA.parent / "reference" / "scene" / "exposures.ecsv"
+    if survey is not None and ref_scene.exists() and state.DATA.parent.name != "reference":
         from astropy.table import Table
         from astropy.time import Time
 
@@ -1385,7 +1254,7 @@ def main(argv=None):
         ref = Table.read(ref_scene)
         ref = ref[ref["band"] == B]
         ref_tel = np.asarray(ref["tel_id"], int)
-        ref_bjd = night.bjd_tdb(Time(list(ref["time"]), scale="utc"), CENTRE.ra.deg, CENTRE.dec.deg, cfg=cfg)
+        ref_bjd = night.bjd_tdb(Time(list(ref["time"]), scale="utc"), state.CENTRE.ra.deg, state.CENTRE.dec.deg, cfg=cfg)
         for k in follow:
             if k in transient:
                 continue
@@ -1434,7 +1303,7 @@ def main(argv=None):
     whole = obs["output"]["movie_window_px"] > 0 and (not args.no_render or obs["output"]["movie_data"])
     for t in obs["hdps"]["tasks"]:  # hdps's tile images: those the movie shows (None: every tile hdps differenced)
         if t["type"] == "TileImageOutputTask":
-            t["config"]["tile_ids"] = None if whole else [int(TILE)]
+            t["config"]["tile_ids"] = None if whole else [int(state.TILE)]
     reference_pass = args.hdps_pass == "reference"
     window_px = int(round(obs["field"]["window"] * MINIPIX_PX * SKY_PX / ARGUS_CONFIG.telescope.plate_scale))
     star_ra, star_dec = block_radec(np.asarray(stars["dx"]), np.asarray(stars["dy"]))
@@ -1496,7 +1365,7 @@ def main(argv=None):
         if args.pipeline_movie:
             from mesa_argus import pipeline_movie
 
-            pipeline_movie.render(records, args.output.with_name(args.output.stem + "_pipeline.mp4"), FIELD, B,
+            pipeline_movie.render(records, args.output.with_name(args.output.stem + "_pipeline.mp4"), state.FIELD, B,
                                   args.fps, args.dpi, ut, airmass, seeing)
 
     if args.render_only:  # a finished run's movie data: the movies only
@@ -1573,14 +1442,14 @@ def main(argv=None):
     # (transients left out); the science pass runs the whole chain against them.
     if reference_pass:
         result = hdps_worker.run(obs, work / "raw", work / "coadds", stop_after="CoaddTapTask",
-                                 worker_id=f"{FIELD}_{B}_reference")
+                                 worker_id=f"{state.FIELD}_{B}_reference")
         shutil.rmtree(work / "coadds" / "solved", ignore_errors=True)
         print(f"hdps worker: {result}; reference coadds -> {work / 'coadds'}", flush=True)
         if not obs["output"]["raw"]:
             shutil.rmtree(work / "raw", ignore_errors=True)
         return
     if not args.measure_only:
-        result = hdps_worker.run(obs, work / "raw", work, reference_dir=args.reference, worker_id=f"{FIELD}_{B}")
+        result = hdps_worker.run(obs, work / "raw", work, reference_dir=args.reference, worker_id=f"{state.FIELD}_{B}")
         print(f"hdps worker: {result}", flush=True)
     tile_bytes = sum(p.stat().st_size for p in work.glob("epoch_*_tile_*.fits"))
     print(f"hdps's tile images: {tile_bytes / 1e9:.2f} GB ({tile_bytes / 1e6 / max(1, len(records)):.0f} MB per frame)"
@@ -1605,7 +1474,7 @@ def main(argv=None):
 
             from mesa_argus.pipeline import truth
 
-            for at, (key, value) in enumerate(dict(observation=FIELD, band=B, exposure=int(j), time_utc=str(row["time"]),
+            for at, (key, value) in enumerate(dict(observation=state.FIELD, band=B, exposure=int(j), time_utc=str(row["time"]),
                                                    exptime=args.exptime, airmass=float(airmass[j]),
                                                    seeing=float(seeing[j]), tel_id=int(row["tel_id"]),
                                                    ratchet=int(row["ratchet"]),
@@ -1642,12 +1511,12 @@ def main(argv=None):
             star = np.full(len(catalogue), -1)
             star[star_of[star_of >= 0]] = np.nonzero(star_of >= 0)[0]
             catalogue["star"] = star
-            meta = dict(field=FIELD, band=B, exposure=int(j), date_obs=times[j].isot, bjd_tdb=float(bjd[j]),
+            meta = dict(field=state.FIELD, band=B, exposure=int(j), date_obs=times[j].isot, bjd_tdb=float(bjd[j]),
                         airmass=float(airmass[j]), seeing=float(seeing[j]), exptime=args.exptime,
                         tel_id=int(row["tel_id"]), ratchet=int(row["ratchet"]), fieldang=float(row["field_angle"]),
                         **{f"zp_{key}": value for key, value in (zp or {}).items()})
             catalogue.meta = meta
-            catalogue.write(args.catalogues / f"{FIELD}_{B}_{j:04d}.parquet", overwrite=True)
+            catalogue.write(args.catalogues / f"{state.FIELD}_{B}_{j:04d}.parquet", overwrite=True)
         this_frame = {}
         for k in follow:
             d = int(star_of[k]) if star_of is not None else -1
@@ -1767,7 +1636,7 @@ def choose_shown(follow, stars, rel, alerted):
     none was), at most MAX_SHOWN: those that alerted first, then by how much they change over the night; in their
     followed order."""
     dx, dy = np.asarray(stars["dx"], float), np.asarray(stars["dy"], float)
-    in_view = [k for k in follow if abs(dx[k]) <= HALF and abs(dy[k]) <= HALF]
+    in_view = [k for k in follow if abs(dx[k]) <= state.HALF and abs(dy[k]) <= state.HALF]
     pool = in_view or list(follow)
     alerted_keys = {key for frame in (alerted or []) for key, _, _ in frame}
 
@@ -2020,7 +1889,7 @@ class MovieFrame:
         rgb = window["rgb"] if window else d["rgb"]
         self.norm = norm = AsinhNorm(linear_width=rgb["lw"], vmin=0.0, vmax=rgb["vmax"])
         self.face = image_ax.get_facecolor()
-        whole = (-HALF, HALF, -HALF, HALF)
+        whole = (-state.HALF, state.HALF, -state.HALF, state.HALF)
         self.image = image_ax.imshow(np.zeros((2, 2)), origin="lower", extent=whole, cmap="gray", vmin=0, vmax=1,
                                      interpolation="antialiased" if window else "nearest")  # (the window: > the panel)
         self.missing = image_ax.text(0, 0, "hdps could not process\nthis frame", color="white", ha="center", va="center",
@@ -2033,15 +1902,15 @@ class MovieFrame:
                                                                      alpha=alpha)),
                                     ax.add_collection(LineCollection(window["seams"], colors=colour, linewidths=0.6,
                                                                      alpha=2 * alpha))]
-                ax.add_patch(Rectangle((-HALF, -HALF), 2 * HALF, 2 * HALF, fill=False, ec=BLUE, lw=1.0))
+                ax.add_patch(Rectangle((-state.HALF, -state.HALF), 2 * state.HALF, 2 * state.HALF, fill=False, ec=BLUE, lw=1.0))
             self.outline = [ax.plot([], [], color=WINDOW_EDGE, lw=0.8)[0] for ax in (image_ax, diff_ax)]  # (update)
         else:
-            for v in np.arange(-HALF, HALF + 1e-6, step):  # the minipix grid
-                image_ax.plot([v, v], [-HALF, HALF], color="white", lw=0.5, alpha=0.35)
-                image_ax.plot([-HALF, HALF], [v, v], color="white", lw=0.5, alpha=0.35)
+            for v in np.arange(-state.HALF, state.HALF + 1e-6, step):  # the minipix grid
+                image_ax.plot([v, v], [-state.HALF, state.HALF], color="white", lw=0.5, alpha=0.35)
+                image_ax.plot([-state.HALF, state.HALF], [v, v], color="white", lw=0.5, alpha=0.35)
         image_ax.add_patch(Rectangle((-step / 2, -step / 2), step, step, fill=False, ec=BLUE, lw=1.2))  # the central minipix
         self.star_marks(image_ax, follow, stars, labels, colour_of, 1.2)
-        view = window["view"] if window else (-HALF - 2, HALF + 2, -HALF - 2, HALF + 2)
+        view = window["view"] if window else (-state.HALF - 2, state.HALF + 2, -state.HALF - 2, state.HALF + 2)
         image_ax.set(xlim=view[:2], ylim=view[2:], xlabel="Offset (arcsec)", ylabel="Offset (arcsec)")
         self.telescope = None
         if d["survey"] is None:
@@ -2177,7 +2046,7 @@ class MovieFrame:
         self.when.set_text(f"UT {d['times'][j].iso[11:16]} · airmass {d['airmass'][j]:.2f} · seeing {d['seeing'][j]:.2f}″")
 
         e = exposures[B]
-        extent = e["extent"] if e is not None else (-HALF, HALF, -HALF, HALF)
+        extent = e["extent"] if e is not None else (-state.HALF, state.HALF, -state.HALF, state.HALF)
         if e is not None:
             self.image.set_data(np.clip(self.norm(np.maximum(e["image"] - e["background"], 0.0)), 0, 1))
             self.image.set_extent(extent)
@@ -2204,7 +2073,7 @@ class MovieFrame:
             x0, x1, y0, y1 = self.window["view"]
             marks = [m for m in alert_marks(d, n, args.fps) if x0 < m[0] < x1 and y0 < m[1] < y1]
         else:
-            edge, margin = HALF + 2, 50.0
+            edge, margin = state.HALF + 2, 50.0
             marks = [m for m in alert_marks(d, n, args.fps)
                      if -edge - margin < m[0] < edge + margin and -edge - margin < m[1] + 4.5 < edge]
         style = self.mark_style
