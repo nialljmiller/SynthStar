@@ -133,64 +133,6 @@ def build(paths, only, rebuild):
         raise SystemExit(f"not built: {failed}")
 
 
-def gaia_list(pointings, block, write, write_observation, write_batch):
-    """The catalogued variables around each pointing, and a star file for them: the pointing's Gaia field set and every
-    variable that can be modelled. Optionally an observation file per field, or one observation batch over the fields
-    (each field's variables at their real positions, on the night they change most)."""
-    from synthstar import gaia
-    from synthstar.sources.gaia import CACHE
-
-    star_file = ["# Gaia fields: each one's stars as a set, and each catalogued variable that can be modelled",
-                 "# (Gaia variables: MESA RSP ~0.5-2 h each, PHOEBE minutes).", ""]
-    fields = []  # (ra, dec, field name, the variables' star names)
-    for ra, dec in pointings:
-        field = gaia.field_name(ra, dec)
-        gaia.fetch(ra, dec, CACHE / field)
-        rows, stars, _, _ = gaia.inventory(CACHE / field, ra, dec, block)
-        print(f"\nRA {ra}, Dec {dec}:")
-        gaia.show(rows, block)
-        star_file += table("[[set]]", dict(name=f"{field}_field", generator="Gaia field", ra=ra, dec=dec))
-        variables = []
-        for r in rows:
-            if r["model"]:
-                star_file += [f"# {r['kind']}, G {r['G']:.2f}, P {r['period']:.5f} d ({r['model']})"]
-                star_file += table("[[star]]", dict(name=f"gaia_{r['source']}", generator="Gaia variable", source=r["source"]))
-                variables.append(f"gaia_{r['source']}")
-        fields.append((ra, dec, field, variables))
-    if write:
-        Path(write).write_text("\n".join(star_file))
-        print(f"wrote {write}")
-    else:
-        print("\n" + "\n".join(star_file))
-
-    def observation(ra, dec, field, variables, header):
-        lines = header + [""] + table("[field]", dict(ra=ra, dec=dec, block=block)) + table("[night]", dict(date="auto"))
-        lines += table("[stars]", dict(background=f"{field}_field", layout="real", missing="skip"))
-        for v in variables:
-            lines += table("[[place]]", dict(star=v))
-        return "\n".join(lines)
-
-    if write_observation:
-        for ra, dec, field, variables in fields:
-            path = Path(write_observation)
-            if len(fields) > 1:
-                path = path.with_name(f"{path.stem}_{field}{path.suffix}")
-            path.write_text(observation(ra, dec, field, variables,
-                                        [f"# The Gaia field at RA {ra}, Dec {dec}, on the night its variables change most."]))
-            print(f"wrote {path}")
-    if write_batch:  # tools/stage_batch.py: the base observation, and the fields zipped with their variables
-        batch = Path(write_batch)
-        base = batch.with_name(batch.stem + "_base.toml")
-        base.write_text(observation(*fields[0][:3], [], ["# The observation each field of the batch gets (the batch sets "
-                                                          "the pointing, background, name and stars)."]))
-        lines = [f"# Observe each Gaia field of {write or 'the star file'} on the night its variables change most.",
-                 f"#   python tools/stage_batch.py {batch}", "", f'base = "{base.name}"', 'combine = "zip"', "", "[vary]",
-                 '"field.ra,field.dec,stars.background,field.name" = [']
-        lines += [f"  [{ra}, {dec}, {value(field + '_field')}, {value(field)}]," for ra, dec, field, _ in fields] + ["]"]
-        lines += ["place = ["] + [f"  [{', '.join('{star = ' + value(v) + '}' for v in vs)}]," for *_, vs in fields] + ["]", ""]
-        batch.write_text("\n".join(lines))
-        print(f"wrote {batch} and {base}")
-
 
 def list_built():
     for meta_file in sorted(STARS.glob("*/meta.json")):
@@ -203,17 +145,9 @@ if __name__ == "__main__":
     p.add_argument("stars", nargs="*", help="star file(s)")
     p.add_argument("--only", nargs="+", default=[], help="build only these names")
     p.add_argument("--rebuild", nargs="+", default=[], help="rebuild these names")
-    p.add_argument("--gaia-list", nargs=2, type=float, action="append", metavar=("RA", "DEC"),
-                   help="a Gaia field's variables (repeatable)")
-    p.add_argument("--block", type=int, default=9, help="--gaia-list: minipixes across the block searched")
-    p.add_argument("--write", help="--gaia-list: write the star file here")
-    p.add_argument("--write-observation", help="--gaia-list: also write an observation file per field here")
-    p.add_argument("--write-batch", help="--gaia-list: also write an observation batch over the fields here")
     p.add_argument("--list", action="store_true", help="list the built stars")
     a = p.parse_args()
     if a.list:
         list_built()
-    elif a.gaia_list:
-        gaia_list(a.gaia_list, a.block, a.write, a.write_observation, a.write_batch)
     else:
         build(a.stars, a.only, a.rebuild)

@@ -90,20 +90,11 @@ def sightline(ra, dec, distance_pc):
     return float(ebv[0]), f"{where}, {distance_pc / 1000:.2f} kpc; E(B-V) = 0.884 x the map (synthstar/dust.py)"
 
 
-def inventory(data, ra, dec, block_n=3):
-    """Gaia-classified variables in the block_n x block_n block, as rows of dicts (modellable first)."""
-    from argus_sim import skymap_shim as sh
-
-    import night_movie as movie
-
-    # the engine's star list for this pointing (which stars are in the block), pointed at the cached tables
-    tile_id, minipix = sh.radec_to_composite_id(np.array([ra]), np.array([dec]))
-    tile, block = int(tile_id[0]), (int(minipix[0]) % 64, int(minipix[0]) // 64)
-    movie.set_block(block_n)
-    movie.FIELDS["_probe"] = dict(name="", centre=(ra, dec), tile=tile, block=block, date="", site=None)
-    movie.FIELD, movie.DATA, movie.TILE, movie.BLOCK = "_probe", data, tile, block
-    movie.CENTRE = SkyCoord(ra * u.deg, dec * u.deg)
-    stars = movie.load_scene()
+def classify_variables(stars, data):
+    """Gaia-catalogued variables among `stars` (those flagged in_block) as rows of dicts, modellable first: the
+    general star-physics decision of which catalogued variables can be modelled and how (RRab->MESA RSP, EB->PHOEBE,
+    ...). Knows nothing about fields or the field of view; in_block membership is decided by argus_image and handed
+    in via `stars`."""
     in_block = np.asarray(stars["in_block"])
     src = np.asarray(stars["Source"]).astype(np.int64)
     gaia = {int(s): i for i, s in enumerate(src)}
@@ -202,7 +193,7 @@ def inventory(data, ra, dec, block_n=3):
                 row.update(model="PHOEBE (Gaia NSS)" if s in nss else "PHOEBE (fit to Gaia light curve)", why="")
         rows.append(row)
     rows.sort(key=lambda r: (r["model"] is None, -np.nan_to_num(r["amp_G"], nan=-1), r["G"]))
-    return rows, stars, tile, block
+    return rows
 
 
 def show(rows, block_n=3):
