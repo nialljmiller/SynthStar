@@ -39,3 +39,7 @@ data/library/
 # internal reference docs (not for public distribution) and tool cache
 info/
 .chisel/
+
+# machine-specific — kept local, never synced (see config.toml.example)
+/config.toml
+/data/gaia/
