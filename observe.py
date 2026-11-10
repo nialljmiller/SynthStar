@@ -336,7 +336,7 @@ def run_engine(obs, out, n_placed, extra=(), reference=None, decoupled=False):
     else:
         launch([], ".render.log" if "--render-only" in extra else ".log")
     if o["catalogues"] and o["lightcurves"] and "--hdps-pass" not in extra and "--render-only" not in extra:
-        from synthstar.pipeline import lightcurves
+        from argus_image.pipeline import lightcurves
 
         catalogue = lightcurves.positional(out / "catalogues", out, dict(obs["lightcurves"]))
         print(f"catalogue.csv: {len(catalogue)} objects; their light curves in lightcurves/", flush=True)

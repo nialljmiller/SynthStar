@@ -19,7 +19,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from synthstar.interactive import templates as T
+from argus_image.interactive import templates as T
 
 BANDS = ("beta", "rho")
 

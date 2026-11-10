@@ -1,8 +1,8 @@
 """Integrate every template the interactive app offers, into the disk cache (data/interactive/templates/):
-python -m synthstar.interactive.precompute_templates"""
+python -m argus_image.interactive.precompute_templates"""
 import time
 
-from synthstar.interactive import templates as T
+from argus_image.interactive import templates as T
 
 if __name__ == "__main__":
     for kind in T.TYPES:

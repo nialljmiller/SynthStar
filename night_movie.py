@@ -15,7 +15,7 @@ The night, step by step (main):
      ([argussim.telescope] psf_model: the Zemax PSF, or the Gaussian spot with no Zemax file read), sky
   6. the difference-image reference: the median of the best-seeing exposures
   7. every exposure: PSFs + sky -> Poisson, full well, read noise -> hdps source detector, matched to the simulated
-     stars, per-exposure zero point (synthstar.pipeline)
+     stars, per-exposure zero point (argus_image.pipeline)
   8. the movie, frame by frame (the same exposures again, from the same seeds)
 
 Assumptions (field angle, coverage, seeing, transparency, ...): docs/ASSUMPTIONS.md.
@@ -562,7 +562,7 @@ def main(argv=None):
         if table is not None and len(table):  # every alert, labelled with what the simulation put there
             from hdps.alerts.features import FEATURE_SPEC_VERSION
 
-            from synthstar.pipeline import truth
+            from argus_image.pipeline import truth
 
             for at, (key, value) in enumerate(dict(observation=state.FIELD, band=B, exposure=int(j), time_utc=str(row["time"]),
                                                    exptime=args.exptime, airmass=float(airmass[j]),

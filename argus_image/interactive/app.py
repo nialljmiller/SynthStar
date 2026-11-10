@@ -1,14 +1,14 @@
 """The interactive Argus night (Jupyter): the field movie, live, with one star you edit.
 
     %matplotlib widget
-    from synthstar.interactive.app import App
+    from argus_image.interactive.app import App
     App().show()
 
 The window is the field movie (night_movie.MovieFrame, the movie's own drawing): CMD, light curves, hdps's exposure and difference image with
 its alerts, SEDs. Below it: the field (a precomputed hdps night), the band, the star's type and its sliders, the
 airmass offset, and the frame and Play controls. Click the exposure or the difference image to move the star.
 
-Everything but the edited star is a real hdps run (field packs, synthstar.interactive.pack). The edited star is
+Everything but the edited star is a real hdps run (field packs, argus_image.interactive.pack). The edited star is
 added to hdps's images and measured with hdps's own code (night.Night); the stand-ins are listed under the controls.
 """
 import asyncio
@@ -18,10 +18,10 @@ from pathlib import Path
 
 import numpy as np
 
-from synthstar.interactive import night as N
-from synthstar.interactive import pack, templates
-from synthstar.interactive.star import Settings
-from synthstar.interactive.worker import Workers, quiet_argus_sim
+from argus_image.interactive import night as N
+from argus_image.interactive import pack, templates
+from argus_image.interactive.star import Settings
+from argus_image.interactive.worker import Workers, quiet_argus_sim
 
 quiet_argus_sim()
 
@@ -132,7 +132,7 @@ class App:
         self.workers = None if workers == 0 else Workers(workers)
         packs = available()
         if not packs:
-            raise SystemExit(f"no field packs in {pack.PACKS}: python -m synthstar.interactive.pack <observation> --pack <name>")
+            raise SystemExit(f"no field packs in {pack.PACKS}: python -m argus_image.interactive.pack <observation> --pack <name>")
         self.packs = packs
         nm.apply_style()
         with plt.ioff():

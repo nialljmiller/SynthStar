@@ -109,7 +109,7 @@ def measure_frame(work, stem, band, obs, star_x, star_y, expected_flux):
     from astropy.table import Table
     from astropy.wcs import WCS
 
-    from synthstar.pipeline import truth
+    from argus_image.pipeline import truth
 
     path = work / "solved" / f"{stem}_solved.fits"
     if not path.exists():

@@ -11,7 +11,7 @@ shows, at every frame) and the module's settings (the block, the tile) alongside
 - zp: each frame's zero point on the cut-out (hdps's source detector on hdps's tile, matched to hdps's own calibrated
   catalogue magnitudes of the same stars): an added star measured with it is on hdps's scale for that frame.
 
-    python -m synthstar.interactive.pack outputs/pseudo_real/interactive_m3 --pack m3
+    python -m argus_image.interactive.pack outputs/pseudo_real/interactive_m3 --pack m3
 """
 import argparse
 import json
@@ -123,7 +123,7 @@ def cutout_zero_points(out, args, d, frames, mag_max=17.0, match_arcsec=1.5):
     TrueCalibrationTask 0.279 mag, rms 0.008)."""
     from astropy.table import Table
 
-    from synthstar.interactive import measure
+    from argus_image.interactive import measure
 
     sdx, sdy = np.asarray(d["stars"]["dx"], float), np.asarray(d["stars"]["dy"], float)
     folder = out / "catalogues"

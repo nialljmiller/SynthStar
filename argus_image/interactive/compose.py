@@ -183,7 +183,7 @@ def _extinction_ratio(band, x0, x1):
     import astropy.units as u
 
     import night_movie as nm
-    from synthstar.interactive.templates import photometry
+    from argus_image.interactive.templates import photometry
 
     ab = photometry()
     wave = np.linspace(3000.0, 10500.0, 400) * u.AA

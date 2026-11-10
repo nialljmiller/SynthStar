@@ -22,8 +22,8 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from synthstar.interactive import compose, measure, pack, templates
-from synthstar.interactive.star import EditableStar, Settings
+from argus_image.interactive import compose, measure, pack, templates
+from argus_image.interactive.star import EditableStar, Settings
 
 REPO = Path(__file__).resolve().parents[2]
 CUT = "fa10"  # the real/bogus operating point: 10 false alerts per deg2 per exposure on the training set
@@ -56,7 +56,7 @@ def measurement_code():
     import hdps.alerts.features
     import hdps.photometry.source_detection_cpu
 
-    from synthstar.interactive import star
+    from argus_image.interactive import star
 
     digest = hashlib.sha1()
     for module in (compose, measure, star, templates, pack, hdps.alerts.features, hdps.photometry.source_detection_cpu):

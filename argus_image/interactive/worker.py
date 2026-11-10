@@ -43,7 +43,7 @@ def _get(key):
     global _night, _key
     if key != _key:
         _night = _key = None  # free the previous pack before loading the next
-        from synthstar.interactive.night import Night
+        from argus_image.interactive.night import Night
 
         _night, _key = Night(*key), key
     return _night
