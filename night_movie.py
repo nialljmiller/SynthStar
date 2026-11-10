@@ -63,8 +63,8 @@ iers.conf.auto_download = False
 iers.conf.auto_max_age = None  # the bundled Earth-orientation table at any age: sub-second UT1, sub-arcsec polar motion
 _REPO = Path(__file__).resolve().parent  # data/, runs/, outputs/ are in the repo, wherever this is run from
 
-from synthstar.engine import state  # noqa: E402  the shared mutable field/block state (keystone of the stage split)
-from synthstar.engine.state import (MINIPIX_PX, SKY_PX, MARGIN, AIRMASS_GRID, PSF_PHASES, FIELDS,  # noqa: E402
+from argus_image.engine import state  # noqa: E402  the shared mutable field/block state (keystone of the stage split)
+from argus_image.engine.state import (MINIPIX_PX, SKY_PX, MARGIN, AIRMASS_GRID, PSF_PHASES, FIELDS,  # noqa: E402
                                      use_field, set_block, block_label)
 
 
@@ -76,7 +76,7 @@ def __getattr__(name):  # forward the shared mutable state (night_movie.HALF, .T
 
 
 # ---------------------------------------------------------------- the stars
-from synthstar.engine.imaging import (block_offsets, column, block_centre_label, star_catalogue, load_followed, load_placed, engine_of, load_scene, load_pulsators, pulsator_title, choose_followed, night_schedule, survey_schedule, phases_at, catmull_rom_matrix, Scene, constant_star_rates, template_photometry, followed_star_light, conditions, block_radec, binned, raw_frame_path, write_raw_frame, window_footprint)  # noqa: F401  extracted to synthstar/engine/imaging.py
+from argus_image.engine.imaging import (block_offsets, column, block_centre_label, star_catalogue, load_followed, load_placed, engine_of, load_scene, load_pulsators, pulsator_title, choose_followed, night_schedule, survey_schedule, phases_at, catmull_rom_matrix, Scene, constant_star_rates, template_photometry, followed_star_light, conditions, block_radec, binned, raw_frame_path, write_raw_frame, window_footprint)  # noqa: F401  extracted to synthstar/engine/imaging.py
 
 
 
@@ -134,7 +134,7 @@ PHOTOMETRY_COLUMNS = ("exposure", "ut_hours", "airmass", "seeing", "star", "true
 
 
 
-from synthstar.engine.downstream import (slim_record, movie_records, alert_table, measure_frame, block_cut, block_cutouts, WindowMosaic, ReferenceMask, alerts_of, alert_marks, draw_alert_marks, set_alert_mark, alert_spans, model_hours, choose_shown, movie_data, _FrameWriter, render, draw, MovieFrame)  # noqa: F401  extracted to synthstar/engine/downstream.py
+from argus_image.engine.downstream import (slim_record, movie_records, alert_table, measure_frame, block_cut, block_cutouts, WindowMosaic, ReferenceMask, alerts_of, alert_marks, draw_alert_marks, set_alert_mark, alert_spans, model_hours, choose_shown, movie_data, _FrameWriter, render, draw, MovieFrame)  # noqa: F401  extracted to synthstar/engine/downstream.py
 
 
 

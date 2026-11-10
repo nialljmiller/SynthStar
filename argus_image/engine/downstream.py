@@ -29,13 +29,13 @@ from matplotlib.path import Path as MPath  # noqa: E402
 from synthstar import dust  # noqa: E402
 from synthstar.argus import BANDS, BLUE, COLORS, FLAM, NAVY, RED, SYMBOLS, add_logo, apply_style, system_response  # noqa: E402
 from synthstar.seds import Templates  # noqa: E402
-from synthstar.engine import state  # noqa: E402
-from synthstar.engine.state import MINIPIX_PX, SKY_PX, MARGIN, AIRMASS_GRID, PSF_PHASES, FIELDS, use_field, set_block, block_label  # noqa: E402
+from argus_image.engine import state  # noqa: E402
+from argus_image.engine.state import MINIPIX_PX, SKY_PX, MARGIN, AIRMASS_GRID, PSF_PHASES, FIELDS, use_field, set_block, block_label  # noqa: E402
 
 _REPO = Path(__file__).resolve().parents[2]  # repo root
 import textwrap  # noqa: E402
 from argus_sim import skymap_shim as sh  # noqa: E402
-from synthstar.engine.imaging import (block_centre_label, block_offsets, block_radec, engine_of,  # noqa: E402
+from argus_image.engine.imaging import (block_centre_label, block_offsets, block_radec, engine_of,  # noqa: E402
                                        pulsator_title)  # stage-2 scene geometry and labels this layer reuses
 
 MAX_SHOWN = 6  # followed stars the movie draws (an injected run follows hundreds; all are measured and labelled)

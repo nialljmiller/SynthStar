@@ -23,8 +23,8 @@ from argus_sim.observatory import Observatory, seasonal_seeing_params, seeing_at
 from synthstar import dust
 from synthstar.argus import BANDS, FLAM, system_response
 from synthstar.seds import Templates
-from synthstar.engine import state
-from synthstar.engine.state import MINIPIX_PX, SKY_PX, MARGIN, AIRMASS_GRID, PSF_PHASES, FIELDS, use_field, set_block, block_label
+from argus_image.engine import state
+from argus_image.engine.state import MINIPIX_PX, SKY_PX, MARGIN, AIRMASS_GRID, PSF_PHASES, FIELDS, use_field, set_block, block_label
 from synthstar.models import RSPStar, TransientSource
 
 _REPO = Path(__file__).resolve().parents[2]  # repo root
