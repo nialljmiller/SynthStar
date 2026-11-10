@@ -180,7 +180,7 @@ M45, then "do just m45")
 - vega run ended 01:31 (vega's clock) after 2.06 h, peak 15.0 GB plus 1.5 GB swap at the 15G cap. The queue's state
   line says `failed` (exit 1), but the night itself finished: 39038 hdps alert candidates from 210 frames (none
   failed), movie data saved (176 MB). The failure came after, in the light-curve step
-  (`mesa_argus/pipeline/lightcurves.py` `reference_stars`): ATLASRefcat2 returned nothing at M45 on vega
+  (`synthstar/pipeline/lightcurves.py` `reference_stars`): ATLASRefcat2 returned nothing at M45 on vega
   (`pandas.concat`: "No objects to concatenate"), so `lightcurves/` and `summary.md` are incomplete. The pack does not
   use that step. The runner counts `failed` as finished, so it will not rerun.
 - Run copied to the Mac: `outputs/pseudo_real/interactive_m45_g/` (1.3 GB).

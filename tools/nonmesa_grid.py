@@ -74,7 +74,7 @@ def orbit(m1,m2,r1,r2,u):
 
 def binaries():
     at = dwarf_relation()
-    from mesa_argus.binary import ms_mass, sma_rsun
+    from synthstar.binary import ms_mass, sma_rsun
     result = []
     for u in samples(512,7,203):
         m1 = logspan(u[0],0.65,12)
@@ -158,7 +158,7 @@ def parametrics():
 
 
 def supernovae():
-    from mesa_argus.transients import catalogue
+    from synthstar.transients import catalogue
     latest={}
     for name,version,kind,reference in catalogue():
         latest[name]=(version,kind,reference)
@@ -191,7 +191,7 @@ def supernovae():
 def generate():
     all_items=binaries()+parametrics()
     sn,excluded=supernovae();all_items+=sn
-    from mesa_argus.sources import check
+    from synthstar.sources import check
     seen=set()
     for job in all_items:
         gen,keys=check(job['definition'])
@@ -209,7 +209,7 @@ if __name__=='__main__':
     if out.exists() and json.loads(out.read_text())!=m:
         raise SystemExit(f'refusing to change existing manifest {out}')
     out.write_text(json.dumps(m,indent=1)+'\n')
-    from mesa_argus.tomlfile import table
+    from synthstar.tomlfile import table
     folder=ROOT/'examples/stars/nonmesa_20261020';folder.mkdir(parents=True,exist_ok=True)
     grouped={f:[j['definition'] for j in m['jobs'] if j['family']==f] for f in {j['family'] for j in m['jobs']}}
     for family,es in grouped.items():

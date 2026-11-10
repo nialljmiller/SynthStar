@@ -3,7 +3,7 @@ own (`hdps batch process <raw_dir> --config config.yaml`) exactly as on the real
 the loop. This is the thin "interface layer" (the user's words): a small auxiliary file next to hdps that turns what
 our pipeline configured into hdps's own config format.
 
-The simulator today drives hdps in-process through mesa_argus/hdps_worker.py (fake valkey, no Ray, the worker called
+The simulator today drives hdps in-process through synthstar/hdps_worker.py (fake valkey, no Ray, the worker called
 directly). The standalone path instead uses hdps's real CLI + a local valkey + Ray, reading this config.yaml. The
 [hdps] section of observation.toml is already a re-encoding of hdps's docker/demo/config.yaml (schema.py cites it), so
 the conversion is mostly structural.
@@ -50,8 +50,8 @@ def camera_ids(raw_dir):
 
 # The resolved observation.toml carries the schema's NONE sentinel as the string "none" and keeps empty-string
 # defaults; hdps builds its Tasks straight from the config dict (hdps.orchestrate.pipeline.build_task_list), so the
-# same translation the in-process worker does (mesa_argus/hdps_worker.py task_configs) has to happen here, with no
-# mesa_argus import: "none" -> null, and a relative output_dir resolved under the products directory.
+# same translation the in-process worker does (synthstar/hdps_worker.py task_configs) has to happen here, with no
+# synthstar import: "none" -> null, and a relative output_dir resolved under the products directory.
 NONE = "none"
 _OUTPUT_DIR_KEYS = ("output_dir", "science_output_dir", "difference_output_dir")
 
@@ -75,7 +75,7 @@ def to_config(obs, raw_dir, output_dir, solved_dir, suffix, stop_after=None, ref
     solved_dir / suffix fill the swapped PresolvedWCSTask's config so it finds each frame's companion WCS file.
     stop_after (a task type) truncates the chain after that task, inclusive — the "plumbing-first" subset.
     reference_dir: the earlier (reference) pass's coadd directory, set on SFFTSubtractionTask (reference_mode is
-      already "coadd" in the chain) so difference imaging runs — mirrors mesa_argus/hdps_worker's injection.
+      already "coadd" in the chain) so difference imaging runs — mirrors synthstar/hdps_worker's injection.
     alert_model_bundle / alert_score_cut / alert_emit_all: override AlertVettingTask's classifier bundle, operating
       point and emit-all flag (the standalone plumbing test uses a stand-in bundle + score_cut 0 so candidates emit).
     """

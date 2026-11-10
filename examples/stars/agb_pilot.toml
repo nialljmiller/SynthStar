@@ -1,5 +1,5 @@
 # AGB long-period-variable pilot: a few AGBs branched from the saved MESA TP-AGB structures (grids/lpv_tracks.py).
-# Placed at 5 kpc (a different distance can be given in [[place]]). See mesa_argus/sources/agb.py for the honest
+# Placed at 5 kpc (a different distance can be given in [[place]]). See synthstar/sources/agb.py for the honest
 # fidelity limit (the cool AGB tip is below the 3500 K Kurucz grid edge -> grey variability).
 [[star]]
 name = "agb_mira_m2_p232_v2"     # P ~ 232 d; AGB tip 3211 K (below the grid -> grey/bolometric only)

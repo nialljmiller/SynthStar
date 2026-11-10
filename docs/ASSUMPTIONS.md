@@ -29,20 +29,20 @@ ArgusSim supplies the survey (which telescope takes the field when, in which ban
 `coverage_exact`), the geometry (each telescope's array frame and focal plane, `coverage_exact.Layout`) and one star's
 PSF at a time (`ZemaxPSF.with_seeing`). It does not make images. The following is this repo's own code, built on those.
 
-- **Sensor** (`mesa_argus/sensor.py`). Every star's sensor pixel in every exposure, as ArgusSim's geometry places it:
+- **Sensor** (`synthstar/sensor.py`). Every star's sensor pixel in every exposure, as ArgusSim's geometry places it:
   ICRS → CIRS once per night, then the telescope's array frame with its tracking angle → gnomonic focal plane →
   pixels. Its ArgusSim PSF is taken at its own field angle (the nearest tabulated one) and sub-pixel phase (1/8 px),
   scaled by its ArgusSim electrons for the exposure (its SED at that moment, at that airmass), and summed with
   ArgusSim's sky and dark current. Only an N × N-minipix readout window around the field is made (`field.window`,
   default 56 minipix, ≈ 26′; at least 28, hdps's detector minimum; at most the sensor).
 - **Noise.** A Poisson draw per pixel, clipped at ArgusSim's full well, plus Gaussian read noise.
-- **Camera** (`mesa_argus/camera.py`, a toy). The window is written as a raw camera frame with the real AEGIS header
+- **Camera** (`synthstar/camera.py`, a toy). The window is written as a raw camera frame with the real AEGIS header
   keys (UTCSTART, RATCHNUM, CAMID, TARGRA/TARGDEC: the window centre, ...): uint16 with gain = full well / 58,000
   e⁻/ADU (so hdps's 58,000 ADU saturation is the full well), no bias, no overscan, the real frames' readout parity.
 
 ## 2b. Measurement: hdps itself, with the toys it needs
 
-The raw frames go through hdps's own worker (`mesa_argus/hdps_worker.py`: `GPUWorker`, its ratchet manifests, WCS
+The raw frames go through hdps's own worker (`synthstar/hdps_worker.py`: `GPUWorker`, its ratchet manifests, WCS
 cache, coadd finalize and product writer) running the production Task chain (`docker/demo/config.yaml`, every setting
 in the observation file's `[[hdps.tasks]]`): reduction → source detection → Refcat2 → linear and TPV WCS → solved
 frame (`LightweightFITSOutputTask`) → reprojection onto hdps sky tiles → ratchet coadd → SFFT against reference
@@ -63,7 +63,7 @@ exist here:
 - **Photometry**: hdps's source detector's matched-filter flux on the reduced frame, calibrated by hdps's zero point
   (`coadd_magzp`, electron-referenced, fitted against ATLAS g for β and r for ρ; the scalar tier, no colour term, so
   β reads ≈ 0.3 mag off truth for these stars' colours). No PSF or aperture photometry, as the real pipeline.
-- **Ours after hdps** (`mesa_argus/pipeline/`): linking each band's detections by position into objects and light
+- **Ours after hdps** (`synthstar/pipeline/`): linking each band's detections by position into objects and light
   curves (hdps has no light-curve product yet), and the truth labels for scoring.
 - **Colour exposure** (display only). β and ρ, sky subtracted; ρ → red, β → blue, their mean → green, with β scaled
   so the field's median star is grey. Brightness is ρ electrons per pixel above sky on an asinh stretch; colour is the
@@ -91,7 +91,7 @@ telescope, band and coverage of every exposure now come from ArgusSim's survey a
 ## 4. Astrophysics: modelled vs assumed
 
 Every source is an SED; ArgusSim turns it into electrons in each band at each exposure's airmass. Milky Way dust is
-CCM89 (R_V = 3.1; `mesa_argus/dust.py`), added at observation, with E(B−V) the dust in front of each star: Bayestar19
+CCM89 (R_V = 3.1; `synthstar/dust.py`), added at observation, with E(B−V) the dust in front of each star: Bayestar19
 (Green et al. 2019) at the star's distance along its sightline, never more than SFD's whole column (beyond a
 sightline's reliable distances Bayestar19 follows its prior); SFD where Bayestar19 has no data (dec < −30°) or the star
 has no distance (supernovae, microlensing sources: behind all the dust). E(B−V) = 0.884 × the map value (both maps are
@@ -107,23 +107,23 @@ Bailer-Jones et al. (2021) geometric, else Gaia GSP-Phot, else none (the whole c
   or mass). Above E(B−V) ≈ 0.9 neighbouring templates of other metallicities redden slightly differently (≤ 0.05 mag
   in BP−RP at E(B−V) = 4); the inversion uses their running maximum. Sources with no or blended BP−RP take a median
   colour.
-- **Pulsators** (`mesa_argus/rsp.py`): MESA RSP models whose linear period of the star's own mode is tuned to the
+- **Pulsators** (`synthstar/rsp.py`): MESA RSP models whose linear period of the star's own mode is tuned to the
   Gaia (or ASAS-SN) period, run to the limit cycle, then one cycle with an SED every ≤ 25 s from MESA's colors module.
   Placed on the night with the catalogue period and epoch, so the timing of each maximum is a prediction with the
   catalogue's propagated uncertainty. Amplitudes and shapes are the models' predictions, not fitted. Mass assumptions
   by class: RR Lyrae from [M/H]; classical Cepheids from the Bono et al. (2000) mass–luminosity relation; Type II
   Cepheids 0.55 M☉; HADS from the Gaia FLAME mass, radiative (convection off).
-- **Eclipsing binaries** (`mesa_argus/binary.py`): PHOEBE 2 with MESA-atmosphere SEDs, timed and shaped by Gaia's
+- **Eclipsing binaries** (`synthstar/binary.py`): PHOEBE 2 with MESA-atmosphere SEDs, timed and shaped by Gaia's
   eclipsing-binary model (and its NSS orbit when it has one); masses from a main-sequence relation; scaled to Gaia's
   out-of-eclipse G.
-- **Stars made from parameters** (`make_stars.py`; `mesa_argus/sources/`, `python -m mesa_argus.sources`): defined
+- **Stars made from parameters** (`make_stars.py`; `synthstar/sources/`, `python -m synthstar.sources`): defined
   entirely by the star file's keys, with no Gaia input and no dust.
   - Periodic: MESA RSP pulsators (RR Lyrae, Cepheids, Type II Cepheids, HADS) tuned to the given period, at the given L
     (or dust-free absolute M_G) and distance; PHOEBE binaries (W UMa from period, q, inclination, Teffs and fillout
     factor; detached from radii and Teffs) at the given distance, masses from the main-sequence Teff–mass relation
     unless given. Placed by an observation (position, epoch), they are in the reference night
     (so in hdps's reference coadds) as they are on that night, as a real variable would be.
-- **Transients** (`mesa_argus/transients.py`): SEDs against time since t0.
+- **Transients** (`synthstar/transients.py`): SEDs against time since t0.
   - sncosmo models (supernova templates built from observed spectra; no physics run), placed at a redshift and peak
     absolute magnitude with sncosmo's default cosmology.
   - Two parametric models written in this repo, not from sncosmo: point-lens microlensing (MESA template source), and

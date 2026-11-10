@@ -34,7 +34,7 @@ import night_movie as M  # noqa: E402
 from argus_sim import ABPhot, SpectralSky, SystemThroughput  # noqa: E402
 from argus_sim import c as ARGUS_CONFIG  # noqa: E402
 from argus_sim.observatory import Observatory, seasonal_seeing_params, seeing_at_airmass  # noqa: E402
-from mesa_argus.argus import BANDS, FLAM, system_response  # noqa: E402
+from synthstar.argus import BANDS, FLAM, system_response  # noqa: E402
 
 SCENE = REPO / "outputs" / "pseudo_real" / "f294" / "scene"  # an observation's scene (observe.py); --scene sets another
 FIELD = SCENE.parent.name

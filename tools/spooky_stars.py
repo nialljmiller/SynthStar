@@ -108,7 +108,7 @@ def pool():
 def distance_for(name, G_want):
     """The distance (pc) at which the star's mean G, through the sightline's dust at that distance, is G_want."""
     import observe
-    from mesa_argus import dust
+    from synthstar import dust
 
     sed, d = REPO / "stars" / name / "sed.h5", 1000.0
     for _ in range(8):

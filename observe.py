@@ -15,12 +15,12 @@ Stars must be built first (make_stars.py); an observation only names them. The o
     [stars]    the background: a built star set, at its real positions or scattered at random (a synthetic field)
     [[place]]  each star: where (x, y in percent of the image; real Gaia stars sit where they are) and when (t0 for
                transients, epoch for periodic stars; real stars keep their own ephemeris)
-    [pipeline] which implementation runs each measurement stage (mesa_argus/pipeline/)
+    [pipeline] which implementation runs each measurement stage (synthstar/pipeline/)
     [measure]  the stages' settings
     [output]   movie, bands, FITS, page; noise seed, stride, PSF and kernel options
 
 Everything about observing is added here: the pointing, the night (ArgusSim's schedule), the Milky Way dust (the 3D map
-at each star's distance along its sightline, mesa_argus/dust.py), positions and timing. night_movie.py then simulates and
+at each star's distance along its sightline, synthstar/dust.py), positions and timing. night_movie.py then simulates and
 measures the exposures from its scene/.
 
 Outputs in outputs/pseudo_real/<name>/ (real Gaia stars where they are) or outputs/fully_synthetic/<name>/
@@ -42,7 +42,7 @@ REPO = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO))
 STARS = REPO / "stars"
 
-from mesa_argus import dust, runconfig  # noqa: E402
+from synthstar import dust, runconfig  # noqa: E402
 
 
 def read_observation():
@@ -82,7 +82,7 @@ def built_star(name):
 
 def choose_night(f, n, window, real_stars, site, max_airmass):
     """The night asked for, or the nearest one the field is up >= 3 h (with a UT window: at all), or "auto"."""
-    from mesa_argus import night
+    from synthstar import night
 
     if n["date"] == "auto":  # the night the placed real stars change most
         picks = [dict(kind=r["kind"], period=r["period"], epoch_bjd=r["epoch_bjd"], amp_G=r["amp_G"], veb=r.get("veb"))
@@ -107,7 +107,7 @@ def write_background(scene_dir, s, star_set, ra, dec, rng):
     from astropy.coordinates import SkyCoord
     from astropy.table import Table
 
-    from mesa_argus.gaia import RADIUS_DEG, col, distances
+    from synthstar.gaia import RADIUS_DEG, col, distances
 
     catalogue = STARS / s["background"] / "catalogue"
     gaia_stars = Table.read(catalogue / "gaia_dr3_core.ecsv")
@@ -149,7 +149,7 @@ def catalogue_entry(sed_file, ebv, distance):
     catalogue would list for it (the movie calibrates against these, as for a Gaia star)."""
     import h5py
 
-    from mesa_argus.binary import vega_mag
+    from synthstar.binary import vega_mag
 
     with h5py.File(sed_file) as h:
         wave, flux_10pc, t = h["wavelength"][:], h["flux"][:], h["time_days"][:]
@@ -244,7 +244,7 @@ def place_stars(placements, scene_dir, night_info, half_width, rng):
     import h5py
     from astropy.table import Table
 
-    from mesa_argus import night
+    from synthstar import night
 
     start, night_start_bjd, night_end_bjd, ra, dec, site = night_info
     catalogue = scene_dir / "gaia_dr3_core.ecsv"
@@ -335,7 +335,7 @@ def run_engine(obs, out, n_placed, extra=(), reference=None, decoupled=False):
     else:
         launch([], ".render.log" if "--render-only" in extra else ".log")
     if o["catalogues"] and o["lightcurves"] and "--hdps-pass" not in extra and "--render-only" not in extra:
-        from mesa_argus.pipeline import lightcurves
+        from synthstar.pipeline import lightcurves
 
         catalogue = lightcurves.positional(out / "catalogues", out, dict(obs["lightcurves"]))
         print(f"catalogue.csv: {len(catalogue)} objects; their light curves in lightcurves/", flush=True)
@@ -414,8 +414,8 @@ def ratchet_views(coverage, ra, dec):
     from argus_sim.observatory import seeing_at_airmass
     from astropy.time import Time
 
-    from mesa_argus import night, survey
-    from mesa_argus.sensor import Projector
+    from synthstar import night, survey
+    from synthstar.sensor import Projector
 
     times = Time(list(coverage["time"]), scale="utc")
     airmass, _, _ = night.sky_position(times, ra, dec, night.location(cfg))
@@ -477,7 +477,7 @@ def observe(obs, out, scene_only=False, engine_options=None, best_ratchets=0, ma
     from astropy.time import Time
 
     import night_movie
-    from mesa_argus import night
+    from synthstar import night
 
     f, n, s = obs["field"], obs["night"], obs["stars"]
     name, ra, dec = f["name"], f["ra"], f["dec"]
@@ -488,7 +488,7 @@ def observe(obs, out, scene_only=False, engine_options=None, best_ratchets=0, ma
 
     # the stars
     star_set = built_star(s["background"])[1]
-    from mesa_argus.gaia import RADIUS_DEG
+    from synthstar.gaia import RADIUS_DEG
 
     if star_set.get("generator") == "Gaia field" and star_set.get("radius_deg", 0.12) < RADIUS_DEG:  # see gaia.RADIUS_DEG
         raise SystemExit(f"{s['background']} holds Gaia stars within {star_set.get('radius_deg', 0.12)} deg only; the "
@@ -506,7 +506,7 @@ def observe(obs, out, scene_only=False, engine_options=None, best_ratchets=0, ma
     max_airmass = None
     n["date"] = choose_night(f, n, window, [m["real"] for _, _, m in placements if m.get("real")], site, max_airmass)
     from astropy.table import unique
-    from mesa_argus import survey  # the exposures ArgusSim's array takes of the pointing (mesa_argus/survey.py)
+    from synthstar import survey  # the exposures ArgusSim's array takes of the pointing (synthstar/survey.py)
 
     coverage = survey.exposures(ra, dec, n["date"], n["nights"], n["seed"],
                                 layout=obs["argussim"]["packing_strategy"]["layout_file"])
@@ -564,7 +564,7 @@ def observe(obs, out, scene_only=False, engine_options=None, best_ratchets=0, ma
                  f"{f['window']}-minipix readout window through hdps")
     summary = [f"# {name}", "", observing, "", f"RA {ra:.5f}, Dec {dec:+.5f}; first night {n['date']}; Milky Way E(B-V) "
                f"{ebv:.3f} (the whole column at the pointing; each "
-               "star sees the 3D map's dust in front of it, mesa_argus/dust.py)", "",
+               "star sees the 3D map's dust in front of it, synthstar/dust.py)", "",
                background_note, "", "## Stars placed", ""]
     for r in rows:
         if r.get("real"):

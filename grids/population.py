@@ -69,7 +69,7 @@ ALPHA_VARIANTS = [
 
 
 def tracks(make):
-    """`make(mass, feh, alpha, **meta)` builds a track dict (see mesa_argus.grids)."""
+    """`make(mass, feh, alpha, **meta)` builds a track dict (see synthstar.grids)."""
     a_sun = make.alpha_sun
     pop_of = {feh: label for label, feh, _ in POPULATIONS}
     out = []

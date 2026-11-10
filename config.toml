@@ -16,7 +16,7 @@ argus_filters = "filters/Argus/System"       # needs beta.dat, rho.dat (system t
 
 [run]
 workers = 9                   # stars modelled at once (each starts several MESA runs: convection sets, kicks)
-omp_threads = 1               # OpenMP threads per evolution-track run (python -m mesa_argus run)
+omp_threads = 1               # OpenMP threads per evolution-track run (python -m synthstar run)
 rsp_threads = 0               # OpenMP threads per RSP run (make_stars.py / rsp.py); 0 = auto (1-4, from idle cores)
 max_star_procs = 9            # cores MESA may use (0 = all). Evolution runs: cap on `star` processes machine-wide.
                               # RSP: total threads of all RSP runs at once <= max_star_procs

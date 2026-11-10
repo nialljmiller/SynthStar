@@ -38,7 +38,7 @@ def cached_templates():
     if TEMPLATE_CACHE is None:
         import h5py
         import numpy as np
-        from mesa_argus.seds import Templates
+        from synthstar.seds import Templates
         template=Templates()
         masks=[]
         for p in sorted((ROOT/'runs').glob('*_sed/seds.h5')):
@@ -97,7 +97,7 @@ def validate(path,definition):
             if integrated.min() < -1e-5*max(float(abs(integrated).max()),1e-300):
                 raise ValueError(f'negative integrated optical flux in {low}-{high} A')
         if definition['generator'] in ('W UMa','detached EB'):
-            from mesa_argus.history import inside_atmosphere_grid
+            from synthstar.history import inside_atmosphere_grid
             a=f.attrs
             grav=[np.log10(6.674e-8*float(a[m])*1.989e33/(float(a[r])*6.957e10)**2)
                   for m,r in (('mass','R1'),('mass2','R2'))]
@@ -151,8 +151,8 @@ def one(job):
     try:
         with log.open('w',buffering=1) as output,redirect_stdout(output),redirect_stderr(output):
             signal.alarm(900)
-            from mesa_argus.sources import check
-            from mesa_argus.tomlfile import table
+            from synthstar.sources import check
+            from synthstar.tomlfile import table
             import make_stars
             gen,keys=check(job['definition'])
             if gen.engine in ('MESA RSP','MESA evolution') or gen.prepare is not None:
@@ -161,7 +161,7 @@ def one(job):
                 import phoebe
                 phoebe.multiprocessing_off();phoebe.mpi_off()
             if gen.name=='microlensing':
-                from mesa_argus import transients
+                from synthstar import transients
                 transients.Templates=cached_templates
                 template=cached_templates()
                 if not float(template.colour.min())<=keys['bp_rp']<=float(template.colour.max()):

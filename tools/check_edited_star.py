@@ -2,7 +2,7 @@
 
 For each transient injected into a pack's run and shown in it (followed, inside the block, measured by hdps), the
 same library light is put on empty sky beside it (the faintest spot 25-40" away, within 100" of the centre) and
-measured by the app's stand-in (mesa_argus.interactive: compose, measure). Per frame, the two are compared: detected,
+measured by the app's stand-in (synthstar.interactive: compose, measure). Per frame, the two are compared: detected,
 measured - true (hdps's catalogue for the real star; the stand-in for E), and alerted (the real star's hdps candidates
 and E's, scored by the same real/bogus model and cut). The engine leaves transients out of the reference, so E's
 reference holds none of it here either.
@@ -27,7 +27,7 @@ sys.path.insert(0, str(REPO))
 
 def empty_spot(p, dx0, dy0, radius=12.0, limit=100.0):
     """The offset position near (dx0, dy0) whose surroundings are faintest in the pack's science cut-outs."""
-    from mesa_argus.interactive import measure
+    from synthstar.interactive import measure
 
     best = None
     for ox, oy in [(25, 0), (-25, 0), (0, 25), (0, -25), (30, 30), (-30, 30), (30, -30), (-30, -30), (40, 0), (0, 40)]:
@@ -51,9 +51,9 @@ def check(pack_name, band):
     import pandas as pd
     from hdps.alerts.features import FEATURE_NAMES
 
-    from mesa_argus.interactive import compose, measure
-    from mesa_argus.interactive import templates as T
-    from mesa_argus.interactive.night import Night
+    from synthstar.interactive import compose, measure
+    from synthstar.interactive import templates as T
+    from synthstar.interactive.night import Night
 
     night = Night(pack_name, band)
     p = night.p
@@ -111,8 +111,8 @@ def check(pack_name, band):
 def features(pack_name, band):
     from hdps.alerts.features import FEATURE_NAMES
 
-    from mesa_argus.interactive import measure
-    from mesa_argus.interactive.night import Night
+    from synthstar.interactive import measure
+    from synthstar.interactive.night import Night
 
     night = Night(pack_name, band)
     p = night.p

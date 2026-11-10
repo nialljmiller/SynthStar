@@ -1,9 +1,9 @@
 """Build the BC03 galaxy-SED template grid that observe.py matches real catalogue galaxies against.
 
-This is the galaxy analogue of the MESA stellar library (mesa_argus/seds.py Templates): a grid of BC03 composite
+This is the galaxy analogue of the MESA stellar library (synthstar/seds.py Templates): a grid of BC03 composite
 spectra (Bruzual & Charlot 2003, via bagpipes, the updated 2016 "miles" models) spanning galaxy type x redshift.
 Each real Legacy/PS1 galaxy is later matched to the nearest template by its catalogue colours and photo-z, then
-scaled to its catalogue magnitude (mesa_argus/galaxy_templates.py GalaxyTemplates).
+scaled to its catalogue magnitude (synthstar/galaxy_templates.py GalaxyTemplates).
 
 Only this builder imports bagpipes; the loader needs only numpy/h5py, so the engine carries no bagpipes dependency.
 
@@ -70,7 +70,7 @@ def main(argv=None):
     import sncosmo
     import h5py
     from argus_sim import c as cfg, ABPhot, SystemThroughput
-    from mesa_argus.true_calibration import ab_zero_point
+    from synthstar.true_calibration import ab_zero_point
 
     tel = cfg.telescope
     ab = ABPhot(throughput=SystemThroughput(filters={"g": True, "rho": True}, throughput_loss=tel.throughput_loss),

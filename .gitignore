@@ -31,7 +31,7 @@ demo/argus_demo.html
 data/library/
 .claude/
 
-# generated, large: the live notebook's field packs and template tables (mesa_argus/interactive rebuilds them); the
+# generated, large: the live notebook's field packs and template tables (synthstar/interactive rebuilds them); the
 # real/bogus training sets and model bundles (tools/rb_training_set.py, tools/train_rb.py)
 /data/interactive/
 /data/rb/

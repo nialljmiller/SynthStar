@@ -13,7 +13,7 @@ Clones of the other repos: `~/argus_repos/` (synthref, hdps, argus_alert_sim). A
 
 ## Checklist
 
-### argus_alert_sim (Hank's simulated alert stream; uses MESA_Argus through `plugins/mesa_argus`)
+### argus_alert_sim (Hank's simulated alert stream; uses MESA_Argus through `plugins/synthstar`)
 - [x] Update the plugin to current MESA_Argus: PR https://github.com/argus-hdps/argus_alert_sim/pull/1 (open).
       It pinned MESA_Argus at 12031c7 and called `sources.get`, `sources.validate`, `sources.Field` and the `GRB`
       generator, none of which exist now.
@@ -24,7 +24,7 @@ Clones of the other repos: `~/argus_repos/` (synthref, hdps, argus_alert_sim). A
       E(B-V) 0 (MESA_Argus files now record `distance_pc`, so sightline dust could be applied); `PeriodicCurve`
       reddens each template by its source star's own sightline E(B-V), which slightly changes the g/rho amplitude
       ratio when the shape is reused on another sightline.
-- [ ] Build the star library (newton) as files `plugins/mesa_argus/library.py` reads; improve its matching (it gives
+- [ ] Build the star library (newton) as files `plugins/synthstar/library.py` reads; improve its matching (it gives
       each Gaia variable a random template of its class) rather than writing a second matcher.
 
 ### synthref (Hank's synthetic Gaia-XP subtraction references)
@@ -77,7 +77,7 @@ Each of these changes measurements: decide one at a time.
       (what argus_alert_sim installs) has no `ZemaxPSF`. Settle on one.
 
 ### The move and the rename
-- [ ] Move to argus-hdps; new package name; argus_alert_sim's submodule URL and `import mesa_argus` follow.
+- [ ] Move to argus-hdps; new package name; argus_alert_sim's submodule URL and `import synthstar` follow.
 - [ ] Remove what is duplicated (stamps/image code, throughput, PSF) once the above are settled.
 
 ## Log
@@ -129,14 +129,14 @@ Each of these changes measurements: decide one at a time.
   difference-detection kernel are not mirrored yet.
 - 2026-10-19: hdps PR #471 (user; walked_off in source_detection.cu) merged into hdps_full_cpu with the CPU mirror
   change (0678cd5b). MESA_Argus f4393b5: exposures made on the sensor grid, resampled onto the hdps tile grid by
-  Catmull-Rom (as hdps's reprojector). 701f88a: measurement pipeline as stages (mesa_argus/pipeline/: frames,
+  Catmull-Rom (as hdps's reprojector). 701f88a: measurement pipeline as stages (synthstar/pipeline/: frames,
   extraction, calibration, truth), chosen by name from [pipeline]; calibration against ATLAS-Refcat2 with hdps's zero
   point (no simulation truth). f294 survey night, rho, 154 frames: plane zero point in every frame (25.786 +/- 0.021),
   V1 +0.053 / 0.031 mag, V2 +0.024 / 0.026, no outliers. Refcat2 at ~/atlas_refcat2 (linked from
   ~/.rico_cache/atlas_refcat2), still downloading (26 of 82 GB on 2026-10-19).
 
 - 2026-10-19: Refcat2 download complete (83 GB, 192 files).
-- 2026-10-19: difference imaging and alerts (mesa_argus/pipeline/: psf, reference, dia, alerts). observe.py first
+- 2026-10-19: difference imaging and alerts (synthstar/pipeline/: psf, reference, dia, alerts). observe.py first
   observes a sacrificial night (the night before, same stars, no transients); its per-pixel median is the reference,
   written in hdps's CoaddReferenceProvider format with hdps's PSF commissioning products (EPSF, PMERRKER, PMERRCAT).
   ZOGY: hdps's CPU subtractor; PSFs are hdps's Moffat field fit (select_stars + FramePSFBuilder, as TilePSFTask), not
@@ -158,14 +158,14 @@ Each of these changes measurements: decide one at a time.
   vetting after it. Open: science-side V_err (the GPU seam extra_var_ns exists, unused in production), or the
   measured PSF asymmetry.
 - 2026-10-20: the pipeline rebuilt as hdps itself. Each exposure: ArgusSim's survey (telescope, band, tracking angle)
-  and geometry place every star on its telescope's sensor (mesa_argus/sensor.py), rendered in an N x N-minipix
-  readout window (field.window, default 56) and written as a raw camera frame (mesa_argus/camera.py: real AEGIS
+  and geometry place every star on its telescope's sensor (synthstar/sensor.py), rendered in an N x N-minipix
+  readout window (field.window, default 56) and written as a raw camera frame (synthstar/camera.py: real AEGIS
   header keys, toy gain = full well / 58000 e-/ADU, readout parity of the real frames). One observation file defines
-  every parameter with default, limits and justification (mesa_argus/schema.py; template.toml generated from it).
+  every parameter with default, limits and justification (synthstar/schema.py; template.toml generated from it).
   Real/bogus not run (every score 1). CPU paths for ReprojectionTask, CoaddTapTask, SFFTSubtractionTask and
   DiffDetectionTask on hdps cpu-mirror.
 - 2026-10-21: hdps cpu-mirror rebased onto main after #425 (tasks.py split into a package). MESA_Argus's own runner
-  replaced by hdps's GPUWorker (mesa_argus/hdps_worker.py: ManifestSource, its WCS cache, coadd finalize, product
+  replaced by hdps's GPUWorker (synthstar/hdps_worker.py: ManifestSource, its WCS cache, coadd finalize, product
   writer; fakeredis for valkey). LightweightFITSOutputTask (catalogue, WCS, zero point) and TileImageOutputTask (the
   movie's tile) added to the chain. Alert packets: hdps's own (AlertVettingTask), Avro with the public argus.alert
   schema (v3.0; v4 is on origin/feature/alert-schema-v4, unmerged) read from hdps at run time, one file per exposure

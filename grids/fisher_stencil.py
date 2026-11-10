@@ -3,7 +3,7 @@
 Each anchor (M, [M/H], alpha_sun) gets 6 neighbours, +/- one step in each of
 [M/H], ln M and alpha_MLT. At matched evolutionary points (EEPs) the central
 differences give d(magnitude)/d(parameter) for every band, which feeds the
-Fisher-information analysis (mesa_argus.fisher). Every run here exists to
+Fisher-information analysis (synthstar.fisher). Every run here exists to
 measure one derivative.
 
 Steps are small enough to stay in the linear regime but large enough that

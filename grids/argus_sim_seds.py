@@ -2,7 +2,7 @@
 
 Each run writes the interpolated atmosphere SED at every history step (f_lambda at 10 pc),
 packed into runs/<track>/seds.h5 together with that step's stellar parameters and
-synthetic magnitudes (mesa_argus.seds).
+synthetic magnitudes (synthstar.seds).
 
 The two low-mass stars stop at the RGB tip (helium ignition). Following them through the
 He flash and horizontal branch costs many hours of run time, and the flash itself is a

@@ -8,7 +8,7 @@ covers what is left.
 Paths: H = ~/argus_repos/hdps_v4/packages (branch alert-v4-local), M = ~/MESA_ARGUS.
 AL = H/hdps_orchestrate/src/hdps/orchestrate/tasks/alerts.py, FE = H/hdps_alerts/src/hdps/alerts/features.py,
 FIT = H/hdps_photometry/src/hdps/photometry/psf/fit.py, DI = H/hdps_orchestrate/src/hdps/orchestrate/tasks/diffimg.py,
-CO = H/hdps_orchestrate/src/hdps/orchestrate/coadd.py, TC = M/mesa_argus/true_calibration.py, NM = M/night_movie.py.
+CO = H/hdps_orchestrate/src/hdps/orchestrate/coadd.py, TC = M/synthstar/true_calibration.py, NM = M/night_movie.py.
 Line numbers are as of the review and move with edits.
 
 ## Already acted on (in group 2)
@@ -56,7 +56,7 @@ S/N map; the PSF fit holds the position. DECISION: (a) the Fisher bound from ren
 y, ra, dec, eventId: no longer what production sends); (c) an empirical sigma(SNR). Sky: Sigma_sky = J Sigma J^T, J =
 seg.wcs.pixel_scale_matrix x 3600. DECISION: conventions the schema leaves open (raErr in RA or RA cos(dec); covariance
 unit): propose on-sky RA cos(dec) and arcsec^2, ask hdps to document. DECISION: a WCS floor in quadrature (true WCS
-~0.01 px; production TPV_RMS). Validation needs truth_ra/truth_dec columns (M/mesa_argus/pipeline/truth.py ~55-71 has
+~0.01 px; production TPV_RMS). Validation needs truth_ra/truth_dec columns (M/synthstar/pipeline/truth.py ~55-71 has
 only truth_sep_arcsec); sep/sigma should be Rayleigh(1). ~1 day.
 
 **peak.** Max of D within ~1 px of (x, y) on valid pixels, x to_e (SEP's peak is S/N-map units). The cutouts are

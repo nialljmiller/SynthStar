@@ -1,4 +1,4 @@
-// The page's SExtractor port (demo/src/sep.js) vs SEP itself (mesa_argus/photometry.py) on the same exposures.
+// The page's SExtractor port (demo/src/sep.js) vs SEP itself (synthstar/photometry.py) on the same exposures.
 //   node demo/validate/sep.mjs make      -> demo/build/validate_sep/<case>.{f64,json}: page exposures + catalogue inputs
 //   python demo/validate/sep_reference.py -> <case>.ref.json, <case>.{back,seg}: SEP's results on them
 //   node demo/validate/sep.mjs compare

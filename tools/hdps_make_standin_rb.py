@@ -8,7 +8,7 @@ hdps.alerts.classifier.RFBundleClassifier(bundle_dir) loads:
                     operating_points, metrics}
   - the joblib model named by model_file, with a scikit-learn predict_proba -> (n, 2).
 
-Zero simulator dependency: imports hdps (the system under test) + scikit-learn + joblib only; NO mesa_argus.
+Zero simulator dependency: imports hdps (the system under test) + scikit-learn + joblib only; NO synthstar.
 
     python tools/hdps_make_standin_rb.py <bundle_dir>
 """

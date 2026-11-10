@@ -1,6 +1,6 @@
 # TrueCalibrationTask test (2026-10-26): tpvtest7_f359_539p61_214_20260910_beta (and alert_sample_v1_f359_539p61_214_20260910_mac_beta)
 # with the frame's WCS and zero point from the simulation in place of hdps's solve (ReferenceRetrievalTask,
-# LinearWCSSolverTask, SourceMatchingTask, TPVWCSSolverTask; mesa_argus/true_calibration.py): the same machine (the
+# LinearWCSSolverTask, SourceMatchingTask, TPVWCSSolverTask; synthstar/true_calibration.py): the same machine (the
 # Mac), seeds and scene, every 10th exposure, so exposure j compares with both. Expected: every exposure reprojected
 # (tpvtest7: 31 of 31, v1 at 17 terms: 14 of 31); photometry on the simulation's AB scale.
 # The Mac's insurance copy of alert_sample_v1_f359_539p61_214_20260910_beta (2026-10-26): the same night's beta half run on the Mac (its own library: a

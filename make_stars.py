@@ -10,7 +10,7 @@
     python make_stars.py --list                                          # every built star
 
 A star knows nothing about observing: no dust, no position in an image, no night, no instrument (observe.py adds
-those). The generators and their keys: python -m mesa_argus.sources. A star folder holds
+those). The generators and their keys: python -m synthstar.sources. A star folder holds
 
     star.toml    the definition it was built from (every key)
     meta.json    what was built: kind, engine, model parameters; real stars also position, ephemeris, sightline E(B-V)
@@ -34,9 +34,9 @@ REPO = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO))
 STARS = REPO / "stars"
 
-from mesa_argus import config as C  # noqa: E402
-from mesa_argus import sources  # noqa: E402
-from mesa_argus.tomlfile import table, value  # noqa: E402
+from synthstar import config as C  # noqa: E402
+from synthstar import sources  # noqa: E402
+from synthstar.tomlfile import table, value  # noqa: E402
 
 
 def read_star_files(paths):
@@ -137,8 +137,8 @@ def gaia_list(pointings, block, write, write_observation, write_batch):
     """The catalogued variables around each pointing, and a star file for them: the pointing's Gaia field set and every
     variable that can be modelled. Optionally an observation file per field, or one observation batch over the fields
     (each field's variables at their real positions, on the night they change most)."""
-    from mesa_argus import gaia
-    from mesa_argus.sources.gaia import CACHE
+    from synthstar import gaia
+    from synthstar.sources.gaia import CACHE
 
     star_file = ["# Gaia fields: each one's stars as a set, and each catalogued variable that can be modelled",
                  "# (Gaia variables: MESA RSP ~0.5-2 h each, PHOEBE minutes).", ""]

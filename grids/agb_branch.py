@@ -2,9 +2,9 @@
 
 The user's workflow: evolve an intermediate-mass star once to the early AGB and `save_model` there (the costly part);
 then branch several AGB continuations from that one saved model, each run cheaply to a different AGB-tip luminosity.
-The generator `AGB variable` (mesa_argus/sources/agb.py) turns each branch's seds.h5 into a 200+ d variable star.
+The generator `AGB variable` (synthstar/sources/agb.py) turns each branch's seds.h5 into a 200+ d variable star.
 
-  python -m mesa_argus run agb_branch        # run the trunk, then its branches (runner skips finished ones)
+  python -m synthstar run agb_branch        # run the trunk, then its branches (runner skips finished ones)
 
 The trunk (`_agb_trunk`) evolves 2 Msun, [M/H] 0 past core-He burning onto the AGB and stops at log L/Lsun 3.4,
 saving early_agb.mod. Each branch loads that model and continues to a higher log L limit (3.6, 3.7, 3.8), giving AGB
@@ -19,10 +19,10 @@ Design notes (MESA load_model traps):
    extra_controls that the template does not also hard-code (the Blocker wind is hard-coded, so vary it in
    physics.inlist, not here);
  * NOTE the 2-3 Msun AGB tip is ~3200-3450 K, below the 3500 K Kurucz atmosphere edge: these branches' luminous
-   rows fall outside the atmosphere grid, so their SEDs are grey-clamped (see mesa_argus/sources/agb.py). The
+   rows fall outside the atmosphere grid, so their SEDs are grey-clamped (see synthstar/sources/agb.py). The
    branches are structurally correct; optical SED fidelity awaits a cool-star atmosphere grid.
 """
-from mesa_argus import config as C
+from synthstar import config as C
 
 MASS, FEH = 2.0, 0.0
 SAVE = "early_agb.mod"

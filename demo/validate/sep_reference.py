@@ -13,7 +13,7 @@ import sep
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
-from mesa_argus import sep_photometry as P  # noqa: E402
+from synthstar import sep_photometry as P  # noqa: E402
 
 DIR = REPO / "demo" / "build" / "validate_sep"
 

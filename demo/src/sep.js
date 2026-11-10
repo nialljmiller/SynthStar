@@ -1,5 +1,5 @@
 // SExtractor photometry of the page's exposures: a port of SEP 1.4.1 (Barbary 2016; SExtractor's algorithms, Bertin &
-// Arnouts 1996) as mesa_argus/photometry.py calls it, and of photometry.py itself. Runs in the browser and in node
+// Arnouts 1996) as synthstar/photometry.py calls it, and of photometry.py itself. Runs in the browser and in node
 // (demo/validate/sep.mjs checks it against SEP on the same images).
 //
 // The C code works in single precision (PIXTYPE float) in most places; Math.fround reproduces that where it decides
@@ -730,7 +730,7 @@ const SEP = (() => {
     return { sum: tv, err: Math.sqrt(sigtv) };
   }
 
-  // ================================================================ mesa_argus/photometry.py
+  // ================================================================ synthstar/photometry.py
   // extract(image, fwhm): x, y (windowed), MAG_AUTO flux and error, and peak of every detection
   function photometryExtract(image, w, h, fwhm) {
     const bkg = background(image, w, h);

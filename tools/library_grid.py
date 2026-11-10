@@ -23,8 +23,8 @@ import numpy as np
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from mesa_argus import gaia, rsp  # noqa: E402
-from mesa_argus.tomlfile import table  # noqa: E402
+from synthstar import gaia, rsp  # noqa: E402
+from synthstar.tomlfile import table  # noqa: E402
 
 CACHE = REPO / "data" / "library" / "gaia_rrlyrae_all.ecsv"
 PERIOD_STEP = 1.02  # adjacent cells' periods differ by 2%

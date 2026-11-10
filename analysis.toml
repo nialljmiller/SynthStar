@@ -1,4 +1,4 @@
-# Inputs for the Fisher-information (discernibility) analysis: `python -m mesa_argus fisher`.
+# Inputs for the Fisher-information (discernibility) analysis: `python -m synthstar fisher`.
 
 # Distance-modulus prior (mag). Every band shifts by the same amount with distance,
 # so this sets how much absolute-magnitude information is usable.

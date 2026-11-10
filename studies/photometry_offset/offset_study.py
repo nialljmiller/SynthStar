@@ -6,7 +6,7 @@
 
 For each observation (its scene, outputs/<category>/<name>/scene/), the movie (night_movie.main) is run unchanged, with --no-render, and every measured
 exposure's pixels and per-star electron rates are captured. Each exposure is then measured again exactly as
-mesa_argus.photometry does (SEP background, detection, Kron aperture, MAG_AUTO, the per-exposure zero point with a
+synthstar.photometry does (SEP background, detection, Kron aperture, MAG_AUTO, the per-exposure zero point with a
 colour term), and, because the scene is known, the measured flux of each star is split into what lies in its
 aperture:
 
@@ -49,7 +49,7 @@ TERMS = ("aperture", "neighbours", "sky", "noise", "zp_colour", "zp_cal")
 def capture(field, stride, band="rho"):
     """Run the movie for `field` without drawing it; return what it measured from."""
     import night_movie as M
-    from mesa_argus import sep_photometry as P
+    from synthstar import sep_photometry as P
 
     cap = dict(obs={}, phot=None, scene=None)
     observe = M.Scene.observe
@@ -70,7 +70,7 @@ def capture(field, stride, band="rho"):
     M.Scene.observe, P.SExtractorPhotometry.__init__ = observe_, init_
     out = OUT / "work" / f"{field}.mp4"
     out.parent.mkdir(parents=True, exist_ok=True)
-    from mesa_argus.runconfig import find_output
+    from synthstar.runconfig import find_output
 
     M.main(["--scene", str(find_output(field) / "scene"), "--field", field, "--band", band, "--stride", str(stride),
             "-o", str(out), "--no-render"])
@@ -84,7 +84,7 @@ def capture(field, stride, band="rho"):
 
 # ---------------------------------------------------------------- re-measurement
 def extract(image, fwhm, background=None):
-    """mesa_argus.photometry.extract, also returning the apertures and the segmentation; background: subtract this
+    """synthstar.photometry.extract, also returning the apertures and the segmentation; background: subtract this
     constant instead of SEP's mesh (the true-sky variant)."""
     import sep
 

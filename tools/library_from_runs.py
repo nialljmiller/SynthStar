@@ -29,7 +29,7 @@ def pointing(name):
 def main():
     from astropy.table import Table
 
-    from mesa_argus.runconfig import _value
+    from synthstar.runconfig import _value
 
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--write", type=Path, default=REPO / "examples" / "stars" / "gaia_library.toml")

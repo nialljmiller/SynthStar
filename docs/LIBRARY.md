@@ -39,7 +39,7 @@ The Cepheid selection excludes declinations below -59 degrees, a loose
 ever-visible limit for McDonald, not an Argus footprint/cadence selection.
 The classical-Cepheid mass-luminosity prescription, fallback metallicities,
 Type II mass assumption and zero bolometric-correction approximation are
-inherited from `mesa_argus/gaia.py`; fitted spectra are not exact stellar truth.
+inherited from `synthstar/gaia.py`; fitted spectra are not exact stellar truth.
 
 ### Outputs and their use
 

@@ -56,8 +56,8 @@ and ATLAS-Refcat2 at `~/.rico_cache/atlas_refcat2` (~83 GB).
 ```bash
 $EDITOR config.toml               # machine settings: colors-data path, parallelism (usually only the path)
 make -C mesa_work                 # build MESA's star executable
-python -m mesa_argus setup        # assemble the filter set (Gaia + Argus from your colors data, SDSS from data/)
-python -m mesa_argus run argus_sim_seds   # the stellar SEDs every movie uses for its constant stars (once)
+python -m synthstar setup        # assemble the filter set (Gaia + Argus from your colors data, SDSS from data/)
+python -m synthstar run argus_sim_seds   # the stellar SEDs every movie uses for its constant stars (once)
 ```
 
 On macOS, wrap long runs in `caffeinate -dims` so sleep does not suspend MESA.
@@ -108,7 +108,7 @@ The examples:
 ```toml
 [[star]]
 name = "wuma_035"            # its folder: stars/wuma_035/
-generator = "W UMa"          # python -m mesa_argus.sources lists every generator and its keys
+generator = "W UMa"          # python -m synthstar.sources lists every generator and its keys
 period = 0.35
 q = 0.4
 incl = 80
@@ -202,7 +202,7 @@ file's name:
 - `summary.md`; `scene/`: exactly what the engine (`night_movie.py`) read.
 
 The dust is added here: for every star, the E(B−V) in front of it at its distance along its sightline (the Bayestar19
-3D map, capped at SFD's whole column; `mesa_argus/dust.py`, docs/ASSUMPTIONS.md). Gaia's constant stars have their
+3D map, capped at SFD's whole column; `synthstar/dust.py`, docs/ASSUMPTIONS.md). Gaia's constant stars have their
 own measured dust taken out first with the same law. Network: Gaia queries the first time a pointing is used (then
 cached in `data/gaia/`). The dust maps are local: `bash tools/fetch_dust.sh` once per machine (~860 MB, into
 `~/dustmaps_data`).
@@ -237,26 +237,26 @@ observed back in. Gaia queries are cached in `data/gaia/<pointing>/`.
 | `Gaia field` | set | Gaia DR3 | every Gaia star around a pointing, as constant stars |
 
 Microlensing and dwarf nova are parametric models written in this repo (equations and references in
-`mesa_argus/transients.py`). MESA RSP models take ~0.5–2 h each and PHOEBE a few minutes.
+`synthstar/transients.py`). MESA RSP models take ~0.5–2 h each and PHOEBE a few minutes.
 
-**Adding a generator:** a module in `mesa_argus/sources/` with a list `GENERATORS` of `Generator(name, timing,
-engine, about, keys, make)`, added to `MODULES` in `all_generators()` (`mesa_argus/sources/__init__.py`). Its keys
-are then checked in star files and listed by `python -m mesa_argus.sources`, and observations place it like every
+**Adding a generator:** a module in `synthstar/sources/` with a list `GENERATORS` of `Generator(name, timing,
+engine, about, keys, make)`, added to `MODULES` in `all_generators()` (`synthstar/sources/__init__.py`). Its keys
+are then checked in star files and listed by `python -m synthstar.sources`, and observations place it like every
 other star. A star file names its generator exactly as listed (e.g. `"W UMa"`); an unknown generator or key, or a
 missing required key, stops the run with the names.
 
 ### How it fits together
 
 ```
-make_stars.py star file          → stars/<name>/   (generators in mesa_argus/sources/: MESA RSP, PHOEBE, sncosmo,
+make_stars.py star file          → stars/<name>/   (generators in synthstar/sources/: MESA RSP, PHOEBE, sncosmo,
                                                      parametric transients, Gaia)
 observe.py observation file      → outputs/<category>/<name>/scene/  (field, background stars, placed stars with their file,
                                                             position, timing and dust)
   ├─ the reference night        → the night before, same stars, no transients, through hdps up to its coadds
   └─ night_movie.py --scene      → ArgusSim's survey of the field: each exposure on its telescope's sensor
-                                     (mesa_argus/sensor.py: ArgusSim geometry and PSF) in an N x N-minipix readout
-                                     window, written as a raw camera frame (mesa_argus/camera.py, toy electronics)
-                                   → hdps's own worker over the raw frames (mesa_argus/hdps_worker.py: GPUWorker, the
+                                     (synthstar/sensor.py: ArgusSim geometry and PSF) in an N x N-minipix readout
+                                     window, written as a raw camera frame (synthstar/camera.py, toy electronics)
+                                   → hdps's own worker over the raw frames (synthstar/hdps_worker.py: GPUWorker, the
                                      production Task chain: reduction → detection → WCS → reprojection → coadd →
                                      SFFT → difference detection → alert vetting)
                                    → catalogues, photometry CSV, alerts, both movies, from hdps's products
@@ -380,8 +380,8 @@ in proportion):
 ```bash
 python3 -m ipykernel install --user --name mesa-argus --display-name "MESA_ARGUS (Python 3.14)"   # once
 python observe.py examples/observations/interactive_m3.toml        # one night through hdps, every candidate kept
-python -m mesa_argus.interactive.pack outputs/pseudo_real/interactive_m3 --pack m3   # -> data/interactive/packs/
-python -m mesa_argus.interactive.precompute_templates               # star E's templates (else made when chosen)
+python -m synthstar.interactive.pack outputs/pseudo_real/interactive_m3 --pack m3   # -> data/interactive/packs/
+python -m synthstar.interactive.precompute_templates               # star E's templates (else made when chosen)
 python tools/check_edited_star.py f294test                          # star E against stars hdps measured itself
 jupyter lab notebooks/argus_night_live.ipynb
 ```
@@ -406,10 +406,10 @@ python demo/export_demo.py --scene outputs/pseudo_real/f294/scene && python demo
 MESA tracks with the colors module give synthetic photometry in all three systems at every timestep.
 
 ```bash
-python -m mesa_argus run population fisher_stencil      # resumable: re-running skips finished and running tracks
-python -m mesa_argus status population fisher_stencil
-python -m mesa_argus cmd3d population                   # -> outputs/population_cmd3d.html (one self-contained file)
-python -m mesa_argus fisher                             # -> outputs/fisher/*.png, results.csv
+python -m synthstar run population fisher_stencil      # resumable: re-running skips finished and running tracks
+python -m synthstar status population fisher_stencil
+python -m synthstar cmd3d population                   # -> outputs/population_cmd3d.html (one self-contained file)
+python -m synthstar fisher                             # -> outputs/fisher/*.png, results.csv
 ```
 
 Add `--live` to `cmd3d` or `fisher` to rebuild as runs finish.
@@ -432,7 +432,7 @@ analysis; atmospheres outside the grid (Teff < 3500 K giants, hot low-g corners)
 
 ### MESA SEDs
 
-`grids/argus_sim_seds.py` tracks write the SED at every model; `python -m mesa_argus seds GRID` packs them into
+`grids/argus_sim_seds.py` tracks write the SED at every model; `python -m synthstar seds GRID` packs them into
 `runs/<track>/seds.h5` (wavelength, f_λ at 10 pc per model, model properties, magnitudes).
 
 ## Layout
@@ -441,7 +441,7 @@ analysis; atmospheres outside the grid (Teff < 3500 K giants, hot low-g corners)
 make_stars.py           simulate stars (star files) -> stars/<name>/
 observe.py              observe built stars (observation files) -> outputs/<category>/<name>/
 night_movie.py          the engine observe.py runs: simulate and measure the exposures, draw the movie
-mesa_argus/             the Python package (python -m mesa_argus ...)
+synthstar/             the Python package (python -m synthstar ...)
   argus.py                Argus bands, units and plot style shared by the movies
   dust.py                 dust: the 3D map (Bayestar19, SFD), CCM89, dereddening Gaia stars
   schema.py               every observation parameter: default, unit, limits, justification (template.toml from it)
@@ -454,7 +454,7 @@ mesa_argus/             the Python package (python -m mesa_argus ...)
   sep_photometry.py       the earlier SExtractor (SEP) photometry (the demo's validation, the offset study)
   rsp.py                  MESA RSP pulsator models
   binary.py               PHOEBE eclipsing-binary models
-  sources/                the star generators (one module per family; python -m mesa_argus.sources)
+  sources/                the star generators (one module per family; python -m synthstar.sources)
   transients.py           the transient physics: sncosmo, microlensing, dwarf nova
   gaia.py                 Gaia DR3 queries, a field's variables, a variable's physical parameters
   night.py                when a pointing is observable; BJD at the site

@@ -16,7 +16,7 @@ import pandas as pd  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
-from mesa_argus.argus import apply_style  # noqa: E402
+from synthstar.argus import apply_style  # noqa: E402
 
 OUT = REPO / "outputs" / "offset_study"
 TERMS = ("aperture", "sky", "zp_cal", "neighbours", "noise", "zp_colour")

@@ -1,7 +1,7 @@
 ! =============================================================================
 ! MESA_ARGUS physics inlist (template).
 !
-! mesa_argus/runner.py renders this into runs/<track>/inlist, substituting the
+! synthstar/runner.py renders this into runs/<track>/inlist, substituting the
 ! brace-delimited fields. Every run directory therefore holds the complete inlist that
 ! produced it. Physics choices largely follow MIST (Choi et al. 2016, ApJ 823, 102).
 ! =============================================================================
@@ -33,7 +33,7 @@
       mag_system  = '{mag_system}'
       distance    = 3.0857d19           ! 10 pc -> absolute magnitudes
       ! SED output (grids with save_seds): one CSV per filter per model in SED/,
-      ! packed into seds.h5 by mesa_argus.seds after the run
+      ! packed into seds.h5 by synthstar.seds after the run
       make_csv    = {make_csv}
       sed_per_model = {make_csv}
       colors_results_directory = 'SED'

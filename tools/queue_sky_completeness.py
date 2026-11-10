@@ -17,9 +17,9 @@ import sys
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from mesa_argus.grids import load
-from mesa_argus.sources import check
-from mesa_argus.tomlfile import table
+from synthstar.grids import load
+from synthstar.sources import check
+from synthstar.tomlfile import table
 from make_stars import read_star_files
 
 
@@ -98,7 +98,7 @@ def main():
             gen, keys = check(entry)
             if gen.engine == "MESA evolution":
                 track = {t["name"]: t for t in load(keys["grid"])}[keys["track"]]
-                from mesa_argus.runner import render_inlist
+                from synthstar.runner import render_inlist
                 render_inlist(track)
 
     occupied = set()

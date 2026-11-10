@@ -16,8 +16,8 @@ import numpy as np
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
-from mesa_argus.grids import load
-from mesa_argus.tomlfile import table
+from synthstar.grids import load
+from synthstar.tomlfile import table
 from make_stars import read_star_files
 
 
@@ -161,7 +161,7 @@ def main():
             assert len(parsed) == len(entries)
             for _, gen, definition in parsed:
                 if gen.name == "MESA evolution track":
-                    from mesa_argus.runner import render_inlist
+                    from synthstar.runner import render_inlist
                     ts = {t["name"]: t for t in load(definition["grid"])}
                     render_inlist(ts[definition["track"]])
             target = REPO / "queue" / path.name

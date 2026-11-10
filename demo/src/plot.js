@@ -1,4 +1,4 @@
-// Minimal canvas axes in the movie's style (mesa_argus.argus.apply_style).
+// Minimal canvas axes in the movie's style (synthstar.argus.apply_style).
 
 const Plot = (() => {
   const STYLE = { edge: "#86939e", label: "#253746", tick: "#435766", grid: "rgba(0,0,0,0.13)",

@@ -1,4 +1,4 @@
-# An observation: the one file that defines a run. Written by python -m mesa_argus.schema; every parameter with its
+# An observation: the one file that defines a run. Written by python -m synthstar.schema; every parameter with its
 # default, unit, allowed values and the justification.
 
 [field]
@@ -204,7 +204,7 @@ theta_start_deg = 3.75
 sun_alt_max_deg = -18.0
 
 [camera]
-# The toy camera (mesa_argus/camera.py): electrons to ADU, which ArgusSim does not define. none: the default
+# The toy camera (synthstar/camera.py): electrons to ADU, which ArgusSim does not define. none: the default
 # described.
 # [e-/ADU] allowed: 0.01 .. 100.0. Toy: ArgusSim defines the detector in electrons only. Default: ArgusSim's full well
 # (telescope.fullwell) at hdps's raw saturation level (saturation_adu), so a full pixel is where hdps flags
@@ -217,10 +217,10 @@ offset = 0
 saturation_adu = 58000.0
 
 [image]
-# This repository's renderer (mesa_argus/sensor.py; ArgusSim has no image renderer): the PSF's outer wing.
+# This repository's renderer (synthstar/sensor.py; ArgusSim has no image renderer): the PSF's outer wing.
 # allowed: false | true. false: ArgusSim's PSF stamp as it is; it ends at ArgusSim's Zemax grid (28 x 28 px), so a
 # bright star sits in a visible square (its light stops at ~2e-5 of the star per pixel). true: the stamp continued by
-# a power law fitted to its own outer profile (mesa_argus/sensor.py PSFs), drawn out to where it falls below
+# a power law fitted to its own outer profile (synthstar/sensor.py PSFs), drawn out to where it falls below
 # psf_wing_floor. Default false: runs as before 2026-10-26 (the v1 alert sample).
 psf_wing = false
 # [px] allowed: [inner, outer], 2 <= inner < outer <= 12. Radii (from the stamp's centroid) whose mean profile is
@@ -301,7 +301,7 @@ accumulation_dtype = "float32"
 # [[hdps.tasks]]: hdps's Task chain, in order, run by hdps.orchestrate's PipelineExecutor; each [hdps.tasks.config]
 # holds the Task's constructor parameters.
 
-# Toy Task TrueCalibrationTask: allowed in the chain in place of hdps's own (mesa_argus/schema.py TOY_TASKS), not in
+# Toy Task TrueCalibrationTask: allowed in the chain in place of hdps's own (synthstar/schema.py TOY_TASKS), not in
 # the default chain.
 
 [[hdps.tasks]]
@@ -448,7 +448,7 @@ background_mode = "regional"
 type = "SFFTSubtractionTask"
 [hdps.tasks.config]
 # allowed: "coadd" | "first_frame". hdps docker/demo/config.yaml: coadd, the references are earlier coadds (its
-# reference_dir: the run's reference pass, set by mesa_argus.hdps_worker).
+# reference_dir: the run's reference pass, set by synthstar.hdps_worker).
 reference_mode = "coadd"
 # allowed: >= 1 (no upper limit). hdps default. hdps checks it is below the tile overlap minus 2 px.
 kernel_half_width = 6

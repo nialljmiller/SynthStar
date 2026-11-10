@@ -7,7 +7,7 @@ difference image, light curves, SEDs) and the photometry CSV. observe.py writes 
 
 The night, step by step (main):
   1. the stars: the catalogue (constant stars) and the followed stars (real variables, placed stars, transients)
-  2. the night: ArgusSim's exposure schedule at the field (mesa_argus.night), airmass
+  2. the night: ArgusSim's exposure schedule at the field (synthstar.night), airmass
   3. constant stars: the MESA SED matched to each star's Gaia BP-RP, scaled to its G -> electrons/s per band (ArgusSim)
   4. followed stars: their SED at every exposure (pulsation / orbit phase, or time since t0), through the observation's
      dust -> electrons/s
@@ -15,7 +15,7 @@ The night, step by step (main):
      ([argussim.telescope] psf_model: the Zemax PSF, or the Gaussian spot with no Zemax file read), sky
   6. the difference-image reference: the median of the best-seeing exposures
   7. every exposure: PSFs + sky -> Poisson, full well, read noise -> hdps source detector, matched to the simulated
-     stars, per-exposure zero point (mesa_argus.pipeline)
+     stars, per-exposure zero point (synthstar.pipeline)
   8. the movie, frame by frame (the same exposures again, from the same seeds)
 
 Assumptions (field angle, coverage, seeing, transparency, ...): docs/ASSUMPTIONS.md.
@@ -55,16 +55,16 @@ from argus_sim import c as ARGUS_CONFIG  # noqa: E402
 from argus_sim import skymap_shim as sh  # noqa: E402
 from argus_sim.observatory import Observatory, seasonal_seeing_params, seeing_at_airmass  # noqa: E402
 
-from mesa_argus import dust  # noqa: E402
-from mesa_argus.argus import BANDS, BLUE, COLORS, FLAM, NAVY, RED, SYMBOLS, add_logo, apply_style, system_response  # noqa: E402
-from mesa_argus.seds import Templates  # noqa: E402
+from synthstar import dust  # noqa: E402
+from synthstar.argus import BANDS, BLUE, COLORS, FLAM, NAVY, RED, SYMBOLS, add_logo, apply_style, system_response  # noqa: E402
+from synthstar.seds import Templates  # noqa: E402
 
 iers.conf.auto_download = False
 iers.conf.auto_max_age = None  # the bundled Earth-orientation table at any age: sub-second UT1, sub-arcsec polar motion
 _REPO = Path(__file__).resolve().parent  # data/, runs/, outputs/ are in the repo, wherever this is run from
 
-from mesa_argus.engine import state  # noqa: E402  the shared mutable field/block state (keystone of the stage split)
-from mesa_argus.engine.state import (MINIPIX_PX, SKY_PX, MARGIN, AIRMASS_GRID, PSF_PHASES, FIELDS,  # noqa: E402
+from synthstar.engine import state  # noqa: E402  the shared mutable field/block state (keystone of the stage split)
+from synthstar.engine.state import (MINIPIX_PX, SKY_PX, MARGIN, AIRMASS_GRID, PSF_PHASES, FIELDS,  # noqa: E402
                                      use_field, set_block, block_label)
 
 
@@ -76,7 +76,7 @@ def __getattr__(name):  # forward the shared mutable state (night_movie.HALF, .T
 
 
 # ---------------------------------------------------------------- the stars
-from mesa_argus.engine.imaging import (block_offsets, column, block_centre_label, star_catalogue, load_followed, load_placed, engine_of, load_scene, load_pulsators, pulsator_title, choose_followed, night_schedule, survey_schedule, phases_at, catmull_rom_matrix, Scene, constant_star_rates, template_photometry, followed_star_light, conditions, block_radec, binned, raw_frame_path, write_raw_frame, window_footprint)  # noqa: F401  extracted to mesa_argus/engine/imaging.py
+from synthstar.engine.imaging import (block_offsets, column, block_centre_label, star_catalogue, load_followed, load_placed, engine_of, load_scene, load_pulsators, pulsator_title, choose_followed, night_schedule, survey_schedule, phases_at, catmull_rom_matrix, Scene, constant_star_rates, template_photometry, followed_star_light, conditions, block_radec, binned, raw_frame_path, write_raw_frame, window_footprint)  # noqa: F401  extracted to synthstar/engine/imaging.py
 
 
 
@@ -99,7 +99,7 @@ from mesa_argus.engine.imaging import (block_offsets, column, block_centre_label
 
 
 
-from mesa_argus.engine.models import RSPStar, TransientSource  # noqa: E402  (extracted to mesa_argus/engine/models.py)
+from synthstar.engine.models import RSPStar, TransientSource  # noqa: E402  (extracted to synthstar/engine/models.py)
 
 
 # ---------------------------------------------------------------- the night
@@ -134,7 +134,7 @@ PHOTOMETRY_COLUMNS = ("exposure", "ut_hours", "airmass", "seeing", "star", "true
 
 
 
-from mesa_argus.engine.downstream import (slim_record, movie_records, alert_table, measure_frame, block_cut, block_cutouts, WindowMosaic, ReferenceMask, alerts_of, alert_marks, draw_alert_marks, set_alert_mark, alert_spans, model_hours, choose_shown, movie_data, _FrameWriter, render, draw, MovieFrame)  # noqa: F401  extracted to mesa_argus/engine/downstream.py
+from synthstar.engine.downstream import (slim_record, movie_records, alert_table, measure_frame, block_cut, block_cutouts, WindowMosaic, ReferenceMask, alerts_of, alert_marks, draw_alert_marks, set_alert_mark, alert_spans, model_hours, choose_shown, movie_data, _FrameWriter, render, draw, MovieFrame)  # noqa: F401  extracted to synthstar/engine/downstream.py
 
 
 
@@ -169,7 +169,7 @@ def parser():
     p.add_argument("--hdps-pass", choices=["reference", "science"], default="science",
                    help="reference: the reference nights, hdps coadds only; science: the whole chain against them")
     p.add_argument("--work", type=Path, help="hdps's working folder (raw frames, products, coadds), per band below it")
-    p.add_argument("--pipeline-movie", action="store_true", help="also draw the pipeline movie (mesa_argus.pipeline_movie)")
+    p.add_argument("--pipeline-movie", action="store_true", help="also draw the pipeline movie (synthstar.pipeline_movie)")
     p.add_argument("--reference", type=Path, help="hdps's reference coadds (the reference pass's coadds/): SFFT's reference_dir")
     p.add_argument("--no-render", action="store_true", help="measure (and write FITS) but draw no movie")
     p.add_argument("--measure-only", action="store_true",
@@ -223,7 +223,7 @@ def main(argv=None):
     use_field(args.field, args.scene)
     set_block(args.block or FIELDS[args.field].get("block_n", 3))
     if args.observation is not None:  # the stars kept: out to a readout window's far corner, wherever it falls
-        from mesa_argus import runconfig
+        from synthstar import runconfig
 
         resolved = runconfig.resolve(runconfig.load(args.observation))
         window = resolved["field"]["window"]
@@ -238,7 +238,7 @@ def main(argv=None):
     for key, value in (FIELDS[args.field]["site"] or {}).items():  # the instrument stays Argus; only the site moves
         setattr(cfg.observatory, key, value)
     if args.observation is not None:  # the observation's PSF ([argussim.telescope] psf_model, spot_size) for the Scene
-        # and the sensor's PSFs (mesa_argus.sensor.PSFs); the other [argussim] values are not applied to ArgusSim here
+        # and the sensor's PSFs (synthstar.sensor.PSFs); the other [argussim] values are not applied to ArgusSim here
         telescope = resolved["argussim"]["telescope"]
         cfg.telescope.psf_model, cfg.telescope.spot_size = telescope["psf_model"], telescope["spot_size"]
     print(f"PSF: ArgusSim's {cfg.telescope.psf_model} model"
@@ -274,7 +274,7 @@ def main(argv=None):
     if (state.DATA / "exposures.ecsv").exists():
         times, bjd, airmass, alt, az, survey = survey_schedule(B, cfg)
         if args.observation is not None and not args.render_only:  # here, before the photometry: see 6. below
-            from mesa_argus.survey import check_layout
+            from synthstar.survey import check_layout
 
             check_layout(survey, resolved["argussim"]["packing_strategy"]["layout_file"])
         print(f"survey ({B}): {len(times)} exposures through {len(np.unique(survey['tel_id']))} telescopes in "
@@ -294,7 +294,7 @@ def main(argv=None):
     G = column(stars, "Gmag")  # as seen where observed (a synthetic field: through its own sightline)
 
     # 4. followed stars: real variables and placed stars from their model files, with the observation's dust
-    from mesa_argus import rsp
+    from synthstar import rsp
 
     model_file = {v["source"]: _REPO / "runs" / f"rsp_{rsp.PREFIX}{name}" / "pulsation.h5"
                   for name, v in load_followed().items()}
@@ -339,7 +339,7 @@ def main(argv=None):
         from astropy.table import Table
         from astropy.time import Time
 
-        from mesa_argus import night
+        from synthstar import night
 
         ref = Table.read(ref_scene)
         ref = ref[ref["band"] == B]
@@ -373,14 +373,14 @@ def main(argv=None):
     # 5. conditions per exposure
     seeing, scene = conditions(times, airmass, alt, az, args, stars, cfg, ab, survey)
 
-    # 6. the camera: every exposure on its telescope's sensor (ArgusSim's geometry, mesa_argus.sensor), in the
-    # observation's readout window, written as a raw camera frame (mesa_argus.camera); 7. hdps's worker processes
-    # them (mesa_argus.hdps_worker). The reference pass makes hdps's coadds (transients left out); the science pass
+    # 6. the camera: every exposure on its telescope's sensor (ArgusSim's geometry, synthstar.sensor), in the
+    # observation's readout window, written as a raw camera frame (synthstar.camera); 7. hdps's worker processes
+    # them (synthstar.hdps_worker). The reference pass makes hdps's coadds (transients left out); the science pass
     # runs the whole chain against them, then the measurements from hdps's products (truth labels) and the movies.
     if survey is None:
         raise SystemExit("the engine observes as ArgusSim's survey does: observe.py writes scene/exposures.ecsv")
-    from mesa_argus import hdps_worker, runconfig, sensor
-    from mesa_argus.survey import array_layout
+    from synthstar import hdps_worker, runconfig, sensor
+    from synthstar.survey import array_layout
 
     obs = runconfig.resolve(runconfig.load(args.observation))
     # ArgusSim's ring layout ([argussim.packing_strategy] layout_file): each exposure's ota is a row of the layout
@@ -414,7 +414,7 @@ def main(argv=None):
     seeds = np.random.SeedSequence(args.seed).spawn(len(times))
     calibration = None  # the simulation's WCS and zero point in each raw frame, when the chain takes them from it
     if any(t["type"] == "TrueCalibrationTask" for t in obs["hdps"]["tasks"]):
-        from mesa_argus import true_calibration
+        from synthstar import true_calibration
 
         detection = next(t["config"] for t in obs["hdps"]["tasks"] if t["type"] == "SourceDetectionTask")
         calibration = dict(zp_rate=true_calibration.ab_zero_point(ab, BANDS[B], AIRMASS_GRID), detection=detection,
@@ -453,7 +453,7 @@ def main(argv=None):
                 render(one, draw_data, frames)
                 print(f"field movie ({view}) -> {one.output.name}", flush=True)
         if args.pipeline_movie:
-            from mesa_argus import pipeline_movie
+            from synthstar import pipeline_movie
 
             pipeline_movie.render(records, args.output.with_name(args.output.stem + "_pipeline.mp4"), state.FIELD, B,
                                   args.fps, args.dpi, ut, airmass, seeing)
@@ -528,7 +528,7 @@ def main(argv=None):
         print(f"rendered {len(frames)} frames -> {work / 'raw'}; stopping before hdps (--stop-after-render)", flush=True)
         return
 
-    # 7. hdps's worker over the raw frames (mesa_argus.hdps_worker). The reference pass makes hdps's coadds
+    # 7. hdps's worker over the raw frames (synthstar.hdps_worker). The reference pass makes hdps's coadds
     # (transients left out); the science pass runs the whole chain against them.
     if reference_pass:
         result = hdps_worker.run(obs, work / "raw", work / "coadds", stop_after="CoaddTapTask",
@@ -562,7 +562,7 @@ def main(argv=None):
         if table is not None and len(table):  # every alert, labelled with what the simulation put there
             from hdps.alerts.features import FEATURE_SPEC_VERSION
 
-            from mesa_argus.pipeline import truth
+            from synthstar.pipeline import truth
 
             for at, (key, value) in enumerate(dict(observation=state.FIELD, band=B, exposure=int(j), time_utc=str(row["time"]),
                                                    exptime=args.exptime, airmass=float(airmass[j]),

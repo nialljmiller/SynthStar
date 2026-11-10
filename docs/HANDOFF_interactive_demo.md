@@ -13,7 +13,7 @@ first; ask them before building.
 
 ## What exists
 
-The live notebook `notebooks/argus_night_live.ipynb` (kernel `mesa-argus`), code in `mesa_argus/interactive/`:
+The live notebook `notebooks/argus_night_live.ipynb` (kernel `mesa-argus`), code in `synthstar/interactive/`:
 
 | File | Role |
 |---|---|
