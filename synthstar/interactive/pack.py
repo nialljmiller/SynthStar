@@ -34,7 +34,7 @@ VERSION = 1
 def engine_argv(out, band):
     """night_movie.py's arguments for a finished observation, as observe.run_engine passes them, drawing from the
     run's movie data."""
-    from synthstar import runconfig
+    from argus_image import runconfig
 
     obs = runconfig.resolve(runconfig.load(out / "observation.toml"))
     o, name = obs["output"], obs["field"]["name"]
@@ -163,7 +163,7 @@ def cutout_zero_points(out, args, d, frames, mag_max=17.0, match_arcsec=1.5):
 
 def sfft_settings(out):
     """The run's SFFTSubtractionTask settings that shape what can alert (its bright-star detection mask)."""
-    from synthstar import runconfig
+    from argus_image import runconfig
 
     obs = runconfig.resolve(runconfig.load(Path(out) / "observation.toml"))
     task = next((t for t in obs["hdps"]["tasks"] if t["type"] == "SFFTSubtractionTask"), None)
@@ -173,14 +173,14 @@ def sfft_settings(out):
 def chain(out):
     """The run's hdps Task chain (its types, in order): whether hdps solved each frame or took the simulation's
     calibration (TrueCalibrationTask)."""
-    from synthstar import runconfig
+    from argus_image import runconfig
 
     return [t["type"] for t in runconfig.resolve(runconfig.load(Path(out) / "observation.toml"))["hdps"]["tasks"]]
 
 
 def image_settings(out):
     """The run's [image] settings (its PSF wing): the edited star is drawn as the run drew its stars."""
-    from synthstar import runconfig
+    from argus_image import runconfig
 
     return dict(runconfig.resolve(runconfig.load(Path(out) / "observation.toml"))["image"])
 

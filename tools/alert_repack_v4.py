@@ -69,7 +69,7 @@ def split_truth(folder):
 
 
 def main(argv=None):
-    from synthstar import alert_files
+    from argus_image import alert_files
 
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("sample", type=Path, help="a packaged alert sample (tools/alert_sample.py -o)")

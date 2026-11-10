@@ -70,7 +70,7 @@ def main(argv=None):
     import sncosmo
     import h5py
     from argus_sim import c as cfg, ABPhot, SystemThroughput
-    from synthstar.true_calibration import ab_zero_point
+    from argus_image.true_calibration import ab_zero_point
 
     tel = cfg.telescope
     ab = ABPhot(throughput=SystemThroughput(filters={"g": True, "rho": True}, throughput_loss=tel.throughput_loss),

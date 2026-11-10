@@ -32,7 +32,7 @@ import pandas as pd
 
 def frame_area_deg2(observation_dirs):
     """Readout-window area (deg^2) of each observation (its resolved [field] window, hdps minipixes of 28.125")."""
-    from synthstar import runconfig
+    from argus_image import runconfig
 
     out = {}
     for d in observation_dirs:

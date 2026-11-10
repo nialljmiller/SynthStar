@@ -54,7 +54,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
 import make_stars  # noqa: E402
-from synthstar import runconfig  # noqa: E402
+from argus_image import runconfig  # noqa: E402
 from synthstar.rsp import cores as total_cores  # noqa: E402  ($ARGUS_CORES, else config.toml max_star_procs, else all)
 from synthstar.tomlfile import table  # noqa: E402
 

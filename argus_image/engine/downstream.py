@@ -27,7 +27,7 @@ from matplotlib.patches import Circle, Rectangle  # noqa: E402
 from matplotlib.path import Path as MPath  # noqa: E402
 
 from synthstar import dust  # noqa: E402
-from synthstar.argus import BANDS, BLUE, COLORS, FLAM, NAVY, RED, SYMBOLS, add_logo, apply_style, system_response  # noqa: E402
+from argus_image.argus import BANDS, BLUE, COLORS, FLAM, NAVY, RED, SYMBOLS, add_logo, apply_style, system_response  # noqa: E402
 from synthstar.seds import Templates  # noqa: E402
 from argus_image.engine import state  # noqa: E402
 from argus_image.engine.state import MINIPIX_PX, SKY_PX, MARGIN, AIRMASS_GRID, PSF_PHASES, FIELDS, use_field, set_block, block_label  # noqa: E402
@@ -75,7 +75,7 @@ def alert_table(work, stem):
     packets (the packet's candidate ra/dec are the row's, written from the same values). None if hdps wrote none."""
     import pandas as pd
 
-    from synthstar import alert_files
+    from argus_image import alert_files
 
     paths = sorted(p for p in work.glob(f"alerts_*_{stem}.parquet") if not p.name.startswith("alerts_stamps_"))
     if not paths:

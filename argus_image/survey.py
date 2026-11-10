@@ -28,7 +28,7 @@ BAND_NAMES = {"g": "beta", "rho": "rho"}  # ArgusSim's filter names -> ours
 
 
 def ut_hours(text):
-    """'HH:MM' as hours, 20-24 h as -4-0 h (across midnight), as synthstar.night."""
+    """'HH:MM' as hours, 20-24 h as -4-0 h (across midnight), as argus_image.night."""
     h = int(text[:2]) + int(text[3:5]) / 60
     return h - 24 if h >= 20 else h
 

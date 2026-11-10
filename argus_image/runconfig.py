@@ -12,7 +12,7 @@ import copy
 import tomllib
 from pathlib import Path
 
-from synthstar import schema as S
+from argus_image import schema as S
 
 
 def _fill(where, given, params, errors):
@@ -114,7 +114,7 @@ def resolve(observation):
     try:
         if out["camera"]["gain"] in (None, S.NONE):
             out["camera"]["gain"] = out["argussim"]["telescope"]["fullwell"] / out["camera"]["saturation_adu"]
-        from synthstar import camera
+        from argus_image import camera
 
         for task in out["hdps"]["tasks"]:
             c = task["config"]
@@ -210,7 +210,7 @@ def dumps(observation, header):
     """The resolved observation as TOML (every parameter)."""
     from synthstar.tomlfile import table
 
-    from synthstar.schema import SECTIONS
+    from argus_image.schema import SECTIONS
 
     written = ("field", "night", "stars", "inject", "camera", "image", "lightcurves", "truth", "output")
     if set(SECTIONS) - set(written):  # a section left out is not made again ([image] until 2026-10-26, [inject] until

@@ -74,7 +74,7 @@ def to_pixels(u, v):
     camera's readout orientation (camera.READOUT_Y_SIGN: ArgusSim does not define it) sets the direction of y."""
     from argus_sim import c
 
-    from synthstar import camera
+    from argus_image import camera
 
     t = c.telescope
     f_px = t.focal_length / (t.pixel_size / 1000.0)
@@ -86,7 +86,7 @@ def _cirs_at(x, y, era, theta_deg, ota, layout):
     transform -> focal_plane -> to_pixels."""
     from argus_sim import c
 
-    from synthstar import camera
+    from argus_image import camera
 
     t = c.telescope
     f_px = t.focal_length / (t.pixel_size / 1000.0)
@@ -236,7 +236,7 @@ class PSFs:
             from argus_sim.psf import _BAND_MAP, _match_ee50, _moffat_kernel_2d
             from scipy.signal import fftconvolve
 
-            from synthstar.argus import BANDS
+            from argus_image.argus import BANDS
 
             m = self.model
             if not m._compact:
@@ -295,7 +295,7 @@ class PSFs:
     def angles(self, band):
         if self.gaussian:  # the Gaussian is the same at every field angle: one, the axis
             return np.zeros(1)
-        from synthstar.argus import BANDS
+        from argus_image.argus import BANDS
 
         return self.model.field_angles(BANDS.get(band, band))  # ArgusSim's band names (beta: "g")
 
@@ -379,7 +379,7 @@ class PSFs:
                 p = self.stamp(band, seeing, angle_index, 0, 0).astype(float)
                 p = np.fft.ifft2(fourier_shift(np.fft.fft2(p), (iy / SHIFTS, ix / SHIFTS))).real
             else:
-                from synthstar.argus import BANDS
+                from argus_image.argus import BANDS
 
                 angle = self.angles(band)[angle_index]
                 p, _ = self.model.with_seeing(seeing=seeing, band=BANDS.get(band, band), field_angle_deg=float(angle),

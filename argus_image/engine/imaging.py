@@ -21,7 +21,7 @@ from argus_sim import skymap_shim as sh
 from argus_sim.observatory import Observatory, seasonal_seeing_params, seeing_at_airmass
 
 from synthstar import dust
-from synthstar.argus import BANDS, FLAM, system_response
+from argus_image.argus import BANDS, FLAM, system_response
 from synthstar.seds import Templates
 from argus_image.engine import state
 from argus_image.engine.state import MINIPIX_PX, SKY_PX, MARGIN, AIRMASS_GRID, PSF_PHASES, FIELDS, use_field, set_block, block_label
@@ -215,9 +215,9 @@ def choose_followed(stars, pulsators, n):
 
 
 def night_schedule(date, max_airmass, cfg, start=None, end=None):
-    """Every exposure of the night at the field, as ArgusSim schedules it (synthstar.night.exposures), in the UT
+    """Every exposure of the night at the field, as ArgusSim schedules it (argus_image.night.exposures), in the UT
     window: mid-exposure UTC times, BJD_TDB, airmass, altitude, azimuth."""
-    from synthstar import night
+    from argus_image import night
 
     times, airmass, alt, az = night.exposures(state.CENTRE.ra.deg, state.CENTRE.dec.deg, date, start=start, end=end,
                                               max_airmass=max_airmass, cfg=cfg)
@@ -226,11 +226,11 @@ def night_schedule(date, max_airmass, cfg, start=None, end=None):
 
 def survey_schedule(band, cfg):
     """The survey's exposures of the field in one band (scene/exposures.ecsv, written by observe.py from
-    synthstar.survey): mid-exposure UTC times, BJD_TDB, airmass, altitude, azimuth, and the table's rows (telescope,
+    argus_image.survey): mid-exposure UTC times, BJD_TDB, airmass, altitude, azimuth, and the table's rows (telescope,
     field angle, the ratchet's zenith seeing)."""
     from astropy.time import Time
 
-    from synthstar import night
+    from argus_image import night
 
     rows = Table.read(state.DATA / "exposures.ecsv")
     rows = rows[rows["band"] == band]
@@ -286,7 +286,7 @@ class Scene:
         self._resample_args = (self.n, self.native_n, self.native_centre + (0.5 - self.centre) * step, step)
         self._resample = None
         if cfg.telescope.psf_model == "gaussian":  # ArgusSim's GaussianPSF: no Zemax file read, no ZemaxPSF import
-            from synthstar import sensor
+            from argus_image import sensor
 
             gaussian, made = sensor.gaussian_psf(cfg), {}
 
@@ -582,7 +582,7 @@ def raw_frame_path(folder, row, args):
 
     from astropy.time import Time
 
-    from synthstar import camera
+    from argus_image import camera
 
     mid = Time(row["time"])
     start, end = mid - timedelta(seconds=args.exptime / 2), mid + timedelta(seconds=args.exptime / 2)
@@ -590,11 +590,11 @@ def raw_frame_path(folder, row, args):
 
 
 def write_raw_frame(folder, image, win, row, args, layout, cards=None):
-    """The exposure as a raw camera frame (synthstar.camera): <folder>/<CAMID>_<UTC start>.fits. The header's
+    """The exposure as a raw camera frame (argus_image.camera): <folder>/<CAMID>_<UTC start>.fits. The header's
     pointing is the readout window's centre (the camera's pointing over what it reads out); layout: ArgusSim's ring
     layout the exposures were found with (row's ota is its row); cards: more header cards (the simulation's
-    calibration, synthstar.true_calibration)."""
-    from synthstar import camera, sensor
+    calibration, argus_image.true_calibration)."""
+    from argus_image import camera, sensor
 
     path, start, end = raw_frame_path(folder, row, args)
     ra, dec = sensor.sky_at(win[0] + (win[2] - 1) / 2, win[1] + (win[3] - 1) / 2, row["time"], row["theta_deg"],
@@ -610,8 +610,8 @@ def write_raw_frame(folder, image, win, row, args, layout, cards=None):
 
 def window_footprint(win, row, layout, n=4):
     """A readout window's outline on the sky: (m, 2) arcsec from the block centre (block_offsets), n points along each
-    side of its outer pixel edges, closed, as ArgusSim's geometry places them (synthstar.sensor.sky_at)."""
-    from synthstar import sensor
+    side of its outer pixel edges, closed, as ArgusSim's geometry places them (argus_image.sensor.sky_at)."""
+    from argus_image import sensor
 
     x0, y0, w, h = float(win[0]) - 0.5, float(win[1]) - 0.5, float(win[2]), float(win[3])  # (pixel centres at integers)
     t = np.arange(n) / n

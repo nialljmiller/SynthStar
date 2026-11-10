@@ -17,7 +17,7 @@ For each observation folder (outputs/pseudo_real/<name>) and band:
     <out>/viewer.html                            the alert viewer (tools/alert_viewer.html) as a page of its own: opened
                                                  in a browser it reads this folder (cutouts, light curves, sky, truth)
 
-The packets are the stream Argus would send (synthstar.alert_files: hdps's AlertVettingTask builds every packet,
+The packets are the stream Argus would send (argus_image.alert_files: hdps's AlertVettingTask builds every packet,
 the file stands in for Kafka); nothing in them is changed or added. The truth comes from the engine's
 <name>_night_<band>.alerts.csv (every hdps candidate with its features and its truth, alertId from the packets).
 
@@ -70,7 +70,7 @@ def window_deg2(folder, band, obs):
     """The readout window's area (deg2): its side in sensor pixels from the engine's log, times the plate scale."""
     import re
 
-    from synthstar.runconfig import plate_scale
+    from argus_image.runconfig import plate_scale
 
     log = folder / f"{folder.name}_night_{band}.log"
     m = re.search(r"\((\d+) px window\)", log.read_text(errors="replace")) if log.exists() else None
@@ -166,7 +166,7 @@ def one_band(folder, band, out, min_sigma, cut=None, validate=False, write=True)
     manifest entry (None: no packets)."""
     from fastavro import writer
 
-    from synthstar import alert_files
+    from argus_image import alert_files
     from rb_training_set import label
 
     run = folder.name

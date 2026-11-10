@@ -7,7 +7,7 @@ difference image, light curves, SEDs) and the photometry CSV. observe.py writes 
 
 The night, step by step (main):
   1. the stars: the catalogue (constant stars) and the followed stars (real variables, placed stars, transients)
-  2. the night: ArgusSim's exposure schedule at the field (synthstar.night), airmass
+  2. the night: ArgusSim's exposure schedule at the field (argus_image.night), airmass
   3. constant stars: the MESA SED matched to each star's Gaia BP-RP, scaled to its G -> electrons/s per band (ArgusSim)
   4. followed stars: their SED at every exposure (pulsation / orbit phase, or time since t0), through the observation's
      dust -> electrons/s
@@ -56,7 +56,7 @@ from argus_sim import skymap_shim as sh  # noqa: E402
 from argus_sim.observatory import Observatory, seasonal_seeing_params, seeing_at_airmass  # noqa: E402
 
 from synthstar import dust  # noqa: E402
-from synthstar.argus import BANDS, BLUE, COLORS, FLAM, NAVY, RED, SYMBOLS, add_logo, apply_style, system_response  # noqa: E402
+from argus_image.argus import BANDS, BLUE, COLORS, FLAM, NAVY, RED, SYMBOLS, add_logo, apply_style, system_response  # noqa: E402
 from synthstar.seds import Templates  # noqa: E402
 
 iers.conf.auto_download = False
@@ -169,7 +169,7 @@ def parser():
     p.add_argument("--hdps-pass", choices=["reference", "science"], default="science",
                    help="reference: the reference nights, hdps coadds only; science: the whole chain against them")
     p.add_argument("--work", type=Path, help="hdps's working folder (raw frames, products, coadds), per band below it")
-    p.add_argument("--pipeline-movie", action="store_true", help="also draw the pipeline movie (synthstar.pipeline_movie)")
+    p.add_argument("--pipeline-movie", action="store_true", help="also draw the pipeline movie (argus_image.pipeline_movie)")
     p.add_argument("--reference", type=Path, help="hdps's reference coadds (the reference pass's coadds/): SFFT's reference_dir")
     p.add_argument("--no-render", action="store_true", help="measure (and write FITS) but draw no movie")
     p.add_argument("--measure-only", action="store_true",
@@ -223,7 +223,7 @@ def main(argv=None):
     use_field(args.field, args.scene)
     set_block(args.block or FIELDS[args.field].get("block_n", 3))
     if args.observation is not None:  # the stars kept: out to a readout window's far corner, wherever it falls
-        from synthstar import runconfig
+        from argus_image import runconfig
 
         resolved = runconfig.resolve(runconfig.load(args.observation))
         window = resolved["field"]["window"]
@@ -238,7 +238,7 @@ def main(argv=None):
     for key, value in (FIELDS[args.field]["site"] or {}).items():  # the instrument stays Argus; only the site moves
         setattr(cfg.observatory, key, value)
     if args.observation is not None:  # the observation's PSF ([argussim.telescope] psf_model, spot_size) for the Scene
-        # and the sensor's PSFs (synthstar.sensor.PSFs); the other [argussim] values are not applied to ArgusSim here
+        # and the sensor's PSFs (argus_image.sensor.PSFs); the other [argussim] values are not applied to ArgusSim here
         telescope = resolved["argussim"]["telescope"]
         cfg.telescope.psf_model, cfg.telescope.spot_size = telescope["psf_model"], telescope["spot_size"]
     print(f"PSF: ArgusSim's {cfg.telescope.psf_model} model"
@@ -274,7 +274,7 @@ def main(argv=None):
     if (state.DATA / "exposures.ecsv").exists():
         times, bjd, airmass, alt, az, survey = survey_schedule(B, cfg)
         if args.observation is not None and not args.render_only:  # here, before the photometry: see 6. below
-            from synthstar.survey import check_layout
+            from argus_image.survey import check_layout
 
             check_layout(survey, resolved["argussim"]["packing_strategy"]["layout_file"])
         print(f"survey ({B}): {len(times)} exposures through {len(np.unique(survey['tel_id']))} telescopes in "
@@ -339,7 +339,7 @@ def main(argv=None):
         from astropy.table import Table
         from astropy.time import Time
 
-        from synthstar import night
+        from argus_image import night
 
         ref = Table.read(ref_scene)
         ref = ref[ref["band"] == B]
@@ -373,14 +373,14 @@ def main(argv=None):
     # 5. conditions per exposure
     seeing, scene = conditions(times, airmass, alt, az, args, stars, cfg, ab, survey)
 
-    # 6. the camera: every exposure on its telescope's sensor (ArgusSim's geometry, synthstar.sensor), in the
-    # observation's readout window, written as a raw camera frame (synthstar.camera); 7. hdps's worker processes
-    # them (synthstar.hdps_worker). The reference pass makes hdps's coadds (transients left out); the science pass
+    # 6. the camera: every exposure on its telescope's sensor (ArgusSim's geometry, argus_image.sensor), in the
+    # observation's readout window, written as a raw camera frame (argus_image.camera); 7. hdps's worker processes
+    # them (argus_image.hdps_worker). The reference pass makes hdps's coadds (transients left out); the science pass
     # runs the whole chain against them, then the measurements from hdps's products (truth labels) and the movies.
     if survey is None:
         raise SystemExit("the engine observes as ArgusSim's survey does: observe.py writes scene/exposures.ecsv")
-    from synthstar import hdps_worker, runconfig, sensor
-    from synthstar.survey import array_layout
+    from argus_image import hdps_worker, runconfig, sensor
+    from argus_image.survey import array_layout
 
     obs = runconfig.resolve(runconfig.load(args.observation))
     # ArgusSim's ring layout ([argussim.packing_strategy] layout_file): each exposure's ota is a row of the layout
@@ -414,7 +414,7 @@ def main(argv=None):
     seeds = np.random.SeedSequence(args.seed).spawn(len(times))
     calibration = None  # the simulation's WCS and zero point in each raw frame, when the chain takes them from it
     if any(t["type"] == "TrueCalibrationTask" for t in obs["hdps"]["tasks"]):
-        from synthstar import true_calibration
+        from argus_image import true_calibration
 
         detection = next(t["config"] for t in obs["hdps"]["tasks"] if t["type"] == "SourceDetectionTask")
         calibration = dict(zp_rate=true_calibration.ab_zero_point(ab, BANDS[B], AIRMASS_GRID), detection=detection,
@@ -453,7 +453,7 @@ def main(argv=None):
                 render(one, draw_data, frames)
                 print(f"field movie ({view}) -> {one.output.name}", flush=True)
         if args.pipeline_movie:
-            from synthstar import pipeline_movie
+            from argus_image import pipeline_movie
 
             pipeline_movie.render(records, args.output.with_name(args.output.stem + "_pipeline.mp4"), state.FIELD, B,
                                   args.fps, args.dpi, ut, airmass, seeing)
@@ -528,7 +528,7 @@ def main(argv=None):
         print(f"rendered {len(frames)} frames -> {work / 'raw'}; stopping before hdps (--stop-after-render)", flush=True)
         return
 
-    # 7. hdps's worker over the raw frames (synthstar.hdps_worker). The reference pass makes hdps's coadds
+    # 7. hdps's worker over the raw frames (argus_image.hdps_worker). The reference pass makes hdps's coadds
     # (transients left out); the science pass runs the whole chain against them.
     if reference_pass:
         result = hdps_worker.run(obs, work / "raw", work / "coadds", stop_after="CoaddTapTask",

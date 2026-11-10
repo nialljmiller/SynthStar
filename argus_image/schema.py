@@ -1,5 +1,5 @@
 """Every parameter of an observation: the one file that defines a run (examples/observations/template.toml is written
-from this module: python -m synthstar.schema > examples/observations/template.toml).
+from this module: python -m argus_image.schema > examples/observations/template.toml).
 
 Each parameter has a default, a unit, its allowed values (a range, a set of choices, or a text form) and the
 justification for them, with the source. runconfig.py checks every value against these before any work starts.
@@ -634,7 +634,7 @@ TASK_RULES = {
     ("CoaddTapTask", "background_mode"): ({"scalar", "regional"}, f"{_H}. hdps checks."),
     ("SFFTSubtractionTask", "reference_mode"): ({"coadd", "first_frame"}, f"{_H}: coadd, the references are earlier "
                                                 "coadds (its reference_dir: the run's reference pass, set by "
-                                                "synthstar.hdps_worker)."),
+                                                "argus_image.hdps_worker)."),
     ("SFFTSubtractionTask", "kernel_half_width"): ((1, None), "hdps default. hdps checks it is below the tile "
                                                    "overlap minus 2 px."),
     ("SFFTSubtractionTask", "kernel_poly_order"): ((0, None), f"{_H}. A polynomial order: not negative."),
@@ -770,7 +770,7 @@ def template():
             out += notes(f"{note}. {p.why}") + [f"{p.key} = {default}"]
         return out + [""]
 
-    lines = notes("An observation: the one file that defines a run. Written by python -m synthstar.schema; every "
+    lines = notes("An observation: the one file that defines a run. Written by python -m argus_image.schema; every "
                   "parameter with its default, unit, allowed values and the justification.") + [""]
     lines += block("field", FIELD) + block("night", NIGHT) + block("stars", STARS)
     for sub, ps in ARGUSSIM.items():

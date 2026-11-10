@@ -48,7 +48,7 @@ def camera_id(tel_id):
 def write_raw(path, electrons, meta):
     """electrons: the exposure (sensor pixels, electrons). meta: utc_start, utc_end (isot), exptime, ratchet, tel_id,
     subarray, target_ra, target_dec (deg), band, x_origin, y_origin; optional cards: more header cards (the
-    simulation's calibration, synthstar.true_calibration). Writes a raw frame; returns its path."""
+    simulation's calibration, argus_image.true_calibration). Writes a raw frame; returns its path."""
     adu = np.clip(np.round(np.asarray(electrons, float) / GAIN + OFFSET), 0, 65535).astype(np.uint16)
     header = fits.Header()
     header["UTCSTART"] = meta["utc_start"]

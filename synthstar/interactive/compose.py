@@ -5,7 +5,7 @@ Stand-ins, each stated on screen:
 - the star's PSF: ArgusSim's (ZemaxPSF at the frame's seeing and field angle) resampled onto hdps's tile grid
   (0.879"), without the small rotation between the sensor and the tile; when the pack's run drew its stars otherwise
   (the PSF's outer wing, [image] psf_wing; or a box wider than ArgusSim's 28 px with the on-sky halo, psf_box and
-  psf_halo), the star drawn as the run drew its stars (synthstar.sensor.expected) over the cut-out, then resampled;
+  psf_halo), the star drawn as the run drew its stars (argus_image.sensor.expected) over the cut-out, then resampled;
 - its brightness on hdps's tile: hdps's reprojection keeps surface brightness (electrons per sensor-pixel area), so a
   star's light summed over the tile is its electrons x (sensor pixel / tile pixel)^2 = 1.31; found by comparing an
   injected star hdps rendered with the same light added here;
@@ -33,7 +33,7 @@ PSF_CACHE = Path(__file__).resolve().parents[2] / "data" / "interactive" / "psf"
 def _psfs():
     from argus_sim import c as cfg
 
-    from synthstar import sensor
+    from argus_image import sensor
 
     return sensor.PSFs(cfg)
 
@@ -43,7 +43,7 @@ def _wing_psfs(wing):
     """sensor.PSFs with a run's [image] settings (wing: their items, as a tuple)."""
     from argus_sim import c as cfg
 
-    from synthstar import sensor
+    from argus_image import sensor
 
     return sensor.PSFs(cfg, wing=dict(wing))
 
@@ -139,7 +139,7 @@ def _winged_on_tile(band, seeing, angle_index, dx, dy, extent, shape, half_arcse
     grid; values sum to the drawn light on the patch (the core's resampling loss restored), not to 1."""
     from scipy.ndimage import map_coordinates
 
-    from synthstar import sensor
+    from argus_image import sensor
 
     psfs = _wing_psfs(wing)
     electrons = max(float(electrons), 1.0)

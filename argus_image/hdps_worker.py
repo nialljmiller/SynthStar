@@ -11,15 +11,15 @@ Toys, each standing in for a piece hdps runs against that does not exist here:
 - valkey: an in-process fakeredis server (hdps's own tests use fakeredis) behind the worker's cache, DLQ and metrics;
 - real/bogus: with no model_bundle, AllReal (every candidate scored 1); with one (tools/train_rb.py), hdps's own
   RFBundleClassifier loads it;
-- Kafka: synthstar.alert_files.AvroFileProducer, hdps's packets written as Avro files;
+- Kafka: argus_image.alert_files.AvroFileProducer, hdps's packets written as Avro files;
 - the astrometric and photometric solve, when the chain has TrueCalibrationTask in its place: the simulation's WCS
-  and zero point (synthstar.true_calibration).
+  and zero point (argus_image.true_calibration).
 """
 from pathlib import Path
 
 import numpy as np
 
-from synthstar import schema as S
+from argus_image import schema as S
 
 
 class AllReal:
@@ -92,7 +92,7 @@ def _actor_setup():
     except Exception:
         pass
     try:
-        from synthstar import true_calibration
+        from argus_image import true_calibration
 
         true_calibration.register()
     except Exception:
@@ -135,7 +135,7 @@ def run(obs, raw_dir, out_dir, reference_dir=None, stop_after=None, worker_id="s
         ray.init(num_gpus=(n_gpu if n_gpu > 0 else 1), include_dashboard=False, log_to_driver=False,
                  configure_logging=False, ignore_reinit_error=True,
                  runtime_env={"env_vars": env_vars,
-                              "worker_process_setup_hook": "synthstar.hdps_worker._actor_setup"})
+                              "worker_process_setup_hook": "argus_image.hdps_worker._actor_setup"})
     orch = Orchestrator(config=cfg, input_dir=Path(raw_dir), output_dir=out_dir, max_workers=1)
     result = orch.run()  # start() + run_job() + stop(): hdps batch process's own path
     alert_dir = out_dir / "alerts"
@@ -151,11 +151,11 @@ def run_direct(obs, raw_dir, out_dir, reference_dir=None, stop_after=None, worke
     from hdps.orchestrate.orchestrator import group_images_by_ratchet_camera
     from hdps.orchestrate.worker import GPUWorker, WorkerConfig
 
-    from synthstar.alert_files import AvroFileProducer
+    from argus_image.alert_files import AvroFileProducer
 
     _fake_valkey()
     if any(t["type"] == "TrueCalibrationTask" for t in obs["hdps"]["tasks"]):
-        from synthstar import true_calibration
+        from argus_image import true_calibration
 
         true_calibration.register()
     out_dir = Path(out_dir)

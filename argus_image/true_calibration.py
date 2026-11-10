@@ -81,7 +81,7 @@ def aperture_fraction(psfs, band, seeing, angle_index, detection):
     from hdps.core.telemetry import Telemetry
     from hdps.photometry import SourceDetector
 
-    from synthstar import sensor
+    from argus_image import sensor
 
     if _detector is None:
         _detector = SourceDetector(detect_sigma=detection["detect_sigma"], bg_region_size=64, max_sources=1000,
@@ -133,7 +133,7 @@ def stellar_fwhm(image, scale_arcsec):
     0.8-2" seeing and three field angles). None with fewer than 5 usable stars, or a fit at the search's edge."""
     from hdps.alerts.features import best_fwhm, psf_stamp
 
-    from synthstar import camera
+    from argus_image import camera
 
     table = getattr(getattr(image, "sources", None), "table", None)
     if table is None or len(table) < 5:

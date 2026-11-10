@@ -42,7 +42,8 @@ REPO = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO))
 STARS = REPO / "stars"
 
-from synthstar import dust, runconfig  # noqa: E402
+from synthstar import dust
+from argus_image import runconfig  # noqa: E402
 
 
 def read_observation():
@@ -82,7 +83,7 @@ def built_star(name):
 
 def choose_night(f, n, window, real_stars, site, max_airmass):
     """The night asked for, or the nearest one the field is up >= 3 h (with a UT window: at all), or "auto"."""
-    from synthstar import night
+    from argus_image import night
 
     if n["date"] == "auto":  # the night the placed real stars change most
         picks = [dict(kind=r["kind"], period=r["period"], epoch_bjd=r["epoch_bjd"], amp_G=r["amp_G"], veb=r.get("veb"))
@@ -244,7 +245,7 @@ def place_stars(placements, scene_dir, night_info, half_width, rng):
     import h5py
     from astropy.table import Table
 
-    from synthstar import night
+    from argus_image import night
 
     start, night_start_bjd, night_end_bjd, ra, dec, site = night_info
     catalogue = scene_dir / "gaia_dr3_core.ecsv"
@@ -414,8 +415,8 @@ def ratchet_views(coverage, ra, dec):
     from argus_sim.observatory import seeing_at_airmass
     from astropy.time import Time
 
-    from synthstar import night, survey
-    from synthstar.sensor import Projector
+    from argus_image import night, survey
+    from argus_image.sensor import Projector
 
     times = Time(list(coverage["time"]), scale="utc")
     airmass, _, _ = night.sky_position(times, ra, dec, night.location(cfg))
@@ -477,7 +478,7 @@ def observe(obs, out, scene_only=False, engine_options=None, best_ratchets=0, ma
     from astropy.time import Time
 
     import night_movie
-    from synthstar import night
+    from argus_image import night
 
     f, n, s = obs["field"], obs["night"], obs["stars"]
     name, ra, dec = f["name"], f["ra"], f["dec"]
@@ -506,7 +507,7 @@ def observe(obs, out, scene_only=False, engine_options=None, best_ratchets=0, ma
     max_airmass = None
     n["date"] = choose_night(f, n, window, [m["real"] for _, _, m in placements if m.get("real")], site, max_airmass)
     from astropy.table import unique
-    from synthstar import survey  # the exposures ArgusSim's array takes of the pointing (synthstar/survey.py)
+    from argus_image import survey  # the exposures ArgusSim's array takes of the pointing (synthstar/survey.py)
 
     coverage = survey.exposures(ra, dec, n["date"], n["nights"], n["seed"],
                                 layout=obs["argussim"]["packing_strategy"]["layout_file"])

@@ -13,8 +13,8 @@ def render(records, output, field, band, fps, dpi, ut, airmass, seeing):
     from matplotlib.colors import AsinhNorm
     from matplotlib.patches import Rectangle
 
-    from synthstar import camera
-    from synthstar.argus import COLORS, NAVY, RED, add_logo, apply_style
+    from argus_image import camera
+    from argus_image.argus import COLORS, NAVY, RED, add_logo, apply_style
 
     t = c.telescope
     apply_style()

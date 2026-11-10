@@ -1,4 +1,4 @@
-"""What MESA_ARGUS adds after hdps's pipeline (synthstar.hdps_worker runs hdps itself on the raw frames):
+"""What MESA_ARGUS adds after hdps's pipeline (argus_image.hdps_worker runs hdps itself on the raw frames):
 
     lightcurves  every frame's hdps detections linked by position into objects: a catalogue (with the nearest
                  ATLAS-Refcat2 star, from hdps's loader) and one light curve per object. hdps has no light-curve

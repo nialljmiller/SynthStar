@@ -72,7 +72,7 @@ def up_that_night(ra, dec, date):
     """Whether the field is up >= 3 h on the night of `date` (observe.py's rule); if not, observe.py would move it to
     another week, so the night is skipped with a note."""
     sys.path.insert(0, str(REPO))
-    from synthstar import night
+    from argus_image import night
 
     found, minutes = night.nearest_night(ra, dec, date, night.SITES["argus"], None, None, None, 180)
     if found != date:

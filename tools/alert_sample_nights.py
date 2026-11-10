@@ -33,7 +33,7 @@ def field_of(name):
 
 
 def observation(sample, row, inject, seed, bundle, cut, stride, note):
-    from synthstar import schema as S
+    from argus_image import schema as S
 
     field, date = row["field"], row["date"]
     ra, dec = field_of(field)

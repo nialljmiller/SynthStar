@@ -70,7 +70,7 @@ def capture(field, stride, band="rho"):
     M.Scene.observe, P.SExtractorPhotometry.__init__ = observe_, init_
     out = OUT / "work" / f"{field}.mp4"
     out.parent.mkdir(parents=True, exist_ok=True)
-    from synthstar.runconfig import find_output
+    from argus_image.runconfig import find_output
 
     M.main(["--scene", str(find_output(field) / "scene"), "--field", field, "--band", band, "--stride", str(stride),
             "-o", str(out), "--no-render"])

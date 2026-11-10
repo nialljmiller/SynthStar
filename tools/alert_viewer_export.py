@@ -108,7 +108,7 @@ def write_atlases(blocks, out, name):
 
 def night_band(sample, entry, ra0, dec0, t0, sources, out):
     """Write one night-band's two files; returns its index.json entry."""
-    from synthstar import alert_files
+    from argus_image import alert_files
 
     folder = sample / entry["observation"] / entry["band"]
     truth = pd.read_parquet(folder / "truth.parquet").set_index("alertId")

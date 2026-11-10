@@ -18,7 +18,7 @@ sys.path.insert(0, str(REPO))
 
 def main(argv=None):
     import observe
-    from synthstar import runconfig
+    from argus_image import runconfig
 
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("observation_dir", type=Path, help="outputs/<category>/<name> of a finished observation")

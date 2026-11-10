@@ -4,7 +4,7 @@ are files on disk (a directory of raw frames and, for a science pass, a director
 outputs are files on disk (hdps's products, coadds, and per-exposure Avro alert packets). So this stage runs on its
 own machine, started and ended by file I/O, independent of stages 1, 2 and 4.
 
-This IS hdps: `synthstar.hdps_worker.run` drives hdps's `Orchestrator` (one Ray worker, the [[hdps.tasks]] chain
+This IS hdps: `argus_image.hdps_worker.run` drives hdps's `Orchestrator` (one Ray worker, the [[hdps.tasks]] chain
 through hdps's PipelinedExecutor). What makes it the simulation run rather than the telescope run is the task config,
 not this code: TrueCalibrationTask in place of the astrometric/photometric solve, an Avro file sink in place of Kafka,
 and an in-process fakeredis in place of valkey — each a config/environment choice. Point the same runner at a
@@ -61,7 +61,7 @@ def main(argv=None):
     p.add_argument("--worker-id", default="hdps_stage")
     args = p.parse_args(argv)
 
-    from synthstar import hdps_worker, runconfig
+    from argus_image import hdps_worker, runconfig
 
     frames = _frames_dir(args.frames)
     obs = runconfig.resolve(runconfig.load(_obs_path(frames, args.obs)))
