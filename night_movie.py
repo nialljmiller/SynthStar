@@ -99,7 +99,7 @@ from synthstar.engine.imaging import (block_offsets, column, block_centre_label,
 
 
 
-from synthstar.engine.models import RSPStar, TransientSource  # noqa: E402  (extracted to synthstar/engine/models.py)
+from synthstar.models import RSPStar, TransientSource  # noqa: E402  (extracted to synthstar/engine/models.py)
 
 
 # ---------------------------------------------------------------- the night

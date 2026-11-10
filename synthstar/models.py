@@ -6,7 +6,7 @@ import h5py
 import numpy as np
 
 from synthstar import dust
-from synthstar.argus import FLAM
+FLAM = u.erg / (u.s * u.cm ** 2 * u.AA)  
 class RSPStar:
     """One cycle of a periodic model (MESA RSP limit cycle, or a PHOEBE orbit), phased so phase 0 is maximum light in
     rho (binaries: the primary eclipse). The file's SEDs are at 10 pc; they are seen at `distance` (pc; the file's
