@@ -20,6 +20,7 @@ HOSTS=(
   "huepil   nillmill /home/nillmill/argus_gpu/MESA_Argus               /home/nillmill/argus_gpu/ArgusSim"
   "longleaf nillmill /nas/longleaf/home/nillmill/argus_gpu/MESA_Argus  /nas/longleaf/home/nillmill/argus_gpu/ArgusSim"
   "aurora   nillmill /home/nillmill/argus_gpu/MESA_Argus               /home/nillmill/argus_gpu/ArgusSim"
+  "vega     nill     /home/nill/MESA_Argus                             /home/nill/ArgusSim"
 )
 
 # sync_dir user host dir branch rsync_srcs...   (rsync_srcs: Mac paths to mirror into dir/ when not git)
