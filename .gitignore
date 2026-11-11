@@ -43,3 +43,6 @@ info/
 # machine-specific — kept local, never synced (see config.toml.example)
 /config.toml
 /data/gaia/
+
+# personal machine-sync hook (Mac-only)
+.claude/settings.local.json
