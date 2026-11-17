@@ -1,0 +1,11 @@
+# The galaxy libraries (synthstar/sources/galaxies.py): every default is the built library's definition.
+#   python make_stars.py examples/stars/galaxy_library.toml
+# Needs the build extras: pip install synthstar[galaxies] (bagpipes, galsim, sed-tools). Loading needs only h5py.
+
+[[star]]
+name = "galaxy_spectra_bc03"
+generator = "galaxy spectra"
+
+[[star]]
+name = "galaxy_shapes_cosmos235"
+generator = "galaxy shapes"

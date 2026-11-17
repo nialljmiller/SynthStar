@@ -29,6 +29,8 @@ demo/argus_demo.html
 # newton job queue (tools/newton_queue.sh) and the Gaia catalogues the library grid is drawn from
 /queue/
 data/library/
+# GalSim COSMOS catalogues the galaxy shapes library is built from (downloaded by make_stars.py)
+data/cosmos/
 .claude/
 
 # generated, large: the live notebook's field packs and template tables (synthstar/interactive rebuilds them); the

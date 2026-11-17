@@ -11,6 +11,7 @@ dependencies = ["numpy", "astropy", "h5py", "scipy", "dustmaps"]
 
 [project.optional-dependencies]
 physics = ["sncosmo"]   # PHOEBE / MESA are external tools, not pip deps
+galaxies = ["bagpipes", "galsim", "sed-tools"]   # building the galaxy libraries only; loading them needs h5py
 
 [tool.setuptools.packages.find]
 include = ["synthstar*"]

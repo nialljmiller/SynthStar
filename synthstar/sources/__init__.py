@@ -18,7 +18,7 @@ REQUIRED = "required"
 @dataclass
 class Generator:
     name: str
-    timing: str  # periodic, transient or set
+    timing: str  # periodic, transient, set or library
     engine: str  # MESA RSP, PHOEBE, sncosmo, ...
     about: str
     keys: dict  # {key: (default, note)}
@@ -29,9 +29,9 @@ class Generator:
 
 
 def all_generators():
-    from . import agb, binaries, evolution, gaia, pulsators, transients
+    from . import agb, binaries, evolution, gaia, galaxies, pulsators, transients
 
-    MODULES = (transients, pulsators, binaries, gaia, evolution, agb)
+    MODULES = (transients, pulsators, binaries, gaia, evolution, agb, galaxies)
     return {g.name: g for module in MODULES for g in module.GENERATORS}
 
 

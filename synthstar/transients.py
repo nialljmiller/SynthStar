@@ -16,8 +16,6 @@ import astropy.units as u
 import h5py
 import numpy as np
 
-from argus_sim import ABPhot, SystemThroughput
-from argus_sim import c as ARGUS_CONFIG
 from synthstar.seds import Templates
 
 WAVE = np.arange(3000.0, 10500.0 + 1e-6, 5.0)  # A: the SED panel's 300-1000 nm, 5 A steps
@@ -40,9 +38,15 @@ def write(out, wave, time, flux, attrs):
 
 
 def rho_mag(wave, flam):
-    """Argus rho AB magnitude of f_lambda (erg/s/cm2/A), above the atmosphere."""
+    """Argus rho AB magnitude of f_lambda (erg/s/cm2/A), above the atmosphere.
+
+    The microlensing and dwarf-nova keys are defined in Argus rho, so only those two generators need argus_sim; it is
+    imported here so the rest of synthstar (and the supernova generator) imports without it."""
+    from argus_sim import ABPhot, SystemThroughput
+    from argus_sim import c as ARGUS_CONFIG
+
     tel = ARGUS_CONFIG.telescope
-    ab = ABPhot(throughput=SystemThroughput(filters={"g": True, "rho": True}, throughput_loss=tel.throughput_loss),
+    ab = ABPhot(throughput=SystemThroughput(filters={"rho": True}, throughput_loss=tel.throughput_loss),
                 collecting_area=tel.collecting_area)
     return float(ab.mag_from_sed("rho", wave * u.AA, flam * u.erg / (u.s * u.cm**2 * u.AA)))
 
