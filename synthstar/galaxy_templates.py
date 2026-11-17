@@ -32,8 +32,9 @@ class GalaxyTemplates:
             self.logm_ref = float(f.attrs["logm_ref"])
         self.z = self.params["z"]
 
-    def fit(self, mags, errs=None, photo_z=np.nan, photo_z_err=np.nan, floor=0.03):
-        """Best library spectrum for one galaxy: (index, magnitude offset, chi2).
+    def fit(self, mags, errs=None, photo_z=np.nan, photo_z_err=np.nan, floor=0.03, return_all=False):
+        """Best library spectrum for one galaxy: (index, magnitude offset, chi2); return_all: (chi2, offset) of every
+        spectrum instead, so a caller can choose among equally good fits (one band fits every colour equally).
 
         mags: {band id: AB mag} in any of self.bands (nan = missing); errs likewise (default 0.05); floor is added in
         quadrature (template-grid and calibration error). The offset is the best common shift (the scaling to the
@@ -54,12 +55,14 @@ class GalaxyTemplates:
             pe = photo_z_err if np.isfinite(photo_z_err) and photo_z_err > 0 else 0.05 * (1 + photo_z)
             prior = ((self.z - photo_z) / pe) ** 2
         if not cols:
-            i = int(np.argmin(prior))
-            return i, np.nan, float(prior[i])
-        w = 1 / np.asarray(sig) ** 2
-        resid = np.asarray(obs)[None, :] - self.mags[:, cols]               # [n, k]
-        offset = (resid * w).sum(axis=1) / w.sum()                           # best common shift per template
-        chi2 = (((resid - offset[:, None]) ** 2) * w).sum(axis=1) + prior
+            chi2, offset = prior + np.zeros(len(self.z)), np.full(len(self.z), np.nan)
+        else:
+            w = 1 / np.asarray(sig) ** 2
+            resid = np.asarray(obs)[None, :] - self.mags[:, cols]           # [n, k]
+            offset = (resid * w).sum(axis=1) / w.sum()                       # best common shift per template
+            chi2 = (((resid - offset[:, None]) ** 2) * w).sum(axis=1) + prior
+        if return_all:
+            return chi2, offset
         i = int(np.argmin(chi2))
         return i, float(offset[i]), float(chi2[i])
 
@@ -80,6 +83,13 @@ class GalaxyShapes:
         with h5py.File(path) as f:
             self.cols = {k: np.asarray(v) for k, v in f.items()}
         self.mag, self.z = self.cols["mag_f814w"], self.cols["zphot"]
+
+    def redshift_prior(self, i_mag, k=200):
+        """(median, half the 16-84% width) of the COSMOS photometric redshifts of the k galaxies nearest i_mag: a
+        prior for a catalogue galaxy with no redshift of its own."""
+        near = np.argsort(np.abs(self.mag - i_mag))[:k]
+        lo, mid, hi = np.percentile(self.z[near], [16, 50, 84])
+        return float(mid), float(max(0.5 * (hi - lo), 0.05))
 
     def draw(self, i_mag, z, rng, k=20, mag_scale=0.25, z_scale=0.05):
         """One shape (dict) chosen at random among the k COSMOS galaxies nearest (i_mag, z), distances in units of
